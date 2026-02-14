@@ -327,11 +327,12 @@ function golfabilityScore(current, hourly){
 
   if (snowDepthM > 0) { score -= 100; reasons.push("Snow on the ground"); }
 
-  // Rain intensity scaling
- if (precip >= 0.25) { score -= 50; reasons.push("Heavy rain"); }
-else if (precip > 0.10) { score -= 45; reasons.push("Steady rain"); }
-else if (precip > 0.02) { score -= 12; reasons.push("Light rain"); }
-else if (precip > 0) { score -= 5; reasons.push("Drizzle"); }
+// Rain intensity scaling (in/hr)
+if (precip >= 0.25) { score -= 80; reasons.push("Heavy rain"); }        // stay home-ish
+else if (precip > 0.10) { score -= 65; reasons.push("Steady rain"); }   // sickos
+else if (precip > 0.02) { score -= 25; reasons.push("Light rain"); }    // casuals
+else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
+
 
   // Wind penalty
   let windPenalty = 0;
