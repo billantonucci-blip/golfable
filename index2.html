@@ -411,8 +411,6 @@ function golfabilityScore(current, hourly){
   return { score, verdict, summary, last6hTotal: Number(last6hTotal.toFixed(2)) };
 }
 
-}
-
 async function runCheck(){
   const raw = $("loc").value.trim();
   if (!raw) return;
