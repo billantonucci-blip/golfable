@@ -363,15 +363,20 @@ else if (precip > 0) { score -= 5; reasons.push("Drizzle"); }
   else if (last6hTotal >= 0.40) { score -= 15; reasons.push("Wet last 6 hours"); }
   else if (last6hTotal >= 0.20) { score -= 8; reasons.push("Damp last 6 hours"); }
 
-  // Your cold tolerance
-if (temp < 25) { score -= 70; reasons.push("Brutally cold"); }
-else if (temp < 35) { score -= 60; reasons.push("Very cold"); }
-else if (temp <= 40) { score -= 45; reasons.push("35–40°F"); }       // Sickos by itself
-else if (temp <= 45) { score -= 12; reasons.push("Chilly"); }
-else if (temp >= 110) { score -= 45; reasons.push("110°F+"); }       // Sickos by itself
-else if (temp >= 105) { score -= 35; reasons.push("Extreme heat"); }
-else if (temp >= 100) { score -= 25; reasons.push("Very hot"); }
-else if (temp >= 95) { score -= 15; reasons.push("Hot"); }
+// Temperature penalties (F) — aligned to your “most golfers” ranges
+let tempPenalty = 0;
+if (temp < 30) { tempPenalty = 70; reasons.push("0–30°F (would not play)"); }
+else if (temp < 38) { tempPenalty = 50; reasons.push("30–38°F (true sickos)"); }
+else if (temp < 42) { tempPenalty = 35; reasons.push("38–42°F (hardcore only)"); }
+else if (temp < 50) { tempPenalty = 28; reasons.push("42–50°F (casuals stay home)"); }
+else if (temp < 60) { tempPenalty = 12; reasons.push("50–60°F (a bit chilly)"); }
+else if (temp <= 80) { tempPenalty = 0; /* perfect */ }
+else if (temp <= 95) { tempPenalty = 12; reasons.push("80–95°F (getting hot)"); }
+else if (temp <= 110) { tempPenalty = 50; reasons.push("95–110°F (heat sickos)"); }
+else { tempPenalty = 70; reasons.push("110°F+ (would not play)"); }
+
+score -= tempPenalty;
+
 
   score = Math.max(0, Math.min(100, Math.round(score)));
 
