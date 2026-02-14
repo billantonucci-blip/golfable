@@ -364,14 +364,14 @@ else if (precip > 0) { score -= 5; reasons.push("Drizzle"); }
   else if (last6hTotal >= 0.20) { score -= 8; reasons.push("Damp last 6 hours"); }
 
   // Your cold tolerance
-  if (temp <= 25) { score -= 35; reasons.push("Very cold"); }
-  else if (temp <= 32) { score -= 20; reasons.push("Freezing"); }
-  else if (temp <= 38) { score -= 5; reasons.push("Cold but playable"); }
-  else if (temp <= 45) { score -= 8; reasons.push("Chilly"); }
-  else if (temp >= 105) { score -= 40; reasons.push("Extreme heat"); }
-  else if (temp >= 100) { score -= 30; reasons.push("Extreme heat"); }
-  else if (temp >= 95) { score -= 18; reasons.push("Very hot"); }
-  else if (temp >= 90) { score -= 10; reasons.push("Hot"); }
+if (temp < 25) { score -= 70; reasons.push("Brutally cold"); }
+else if (temp < 35) { score -= 60; reasons.push("Very cold"); }
+else if (temp <= 40) { score -= 45; reasons.push("35–40°F"); }       // Sickos by itself
+else if (temp <= 45) { score -= 12; reasons.push("Chilly"); }
+else if (temp >= 110) { score -= 45; reasons.push("110°F+"); }       // Sickos by itself
+else if (temp >= 105) { score -= 35; reasons.push("Extreme heat"); }
+else if (temp >= 100) { score -= 25; reasons.push("Very hot"); }
+else if (temp >= 95) { score -= 15; reasons.push("Hot"); }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
 
