@@ -325,14 +325,17 @@ function golfabilityScore(current, hourly){
   let score = 100;
   const reasons = [];
 
-  if (snowDepthM > 0) { score -= 100; reasons.push("Snow on the ground"); }
+  // Snow on ground = basically no
+  if (snowDepthM > 0) {
+    score -= 100;
+    reasons.push("Snow on the ground");
+  }
 
-// Rain intensity scaling (in/hr)
-if (precip >= 0.25) { score -= 80; reasons.push("Heavy rain"); }        // stay home-ish
-else if (precip > 0.10) { score -= 65; reasons.push("Steady rain"); }   // sickos
-else if (precip > 0.02) { score -= 25; reasons.push("Light rain"); }    // casuals
-else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
-
+  // Rain intensity scaling (in/hr)
+  if (precip >= 0.25) { score -= 80; reasons.push("Heavy rain"); }        // stay home-ish
+  else if (precip > 0.10) { score -= 65; reasons.push("Steady rain"); }   // sickos
+  else if (precip > 0.02) { score -= 25; reasons.push("Light rain"); }    // casuals
+  else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
 
   // Wind penalty
   let windPenalty = 0;
@@ -345,7 +348,10 @@ else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
   // Rain + wind combo
   if (precip > 0 && ((wind ?? 0) >= 15 || (gust ?? 0) >= 25)) {
     const extra = Math.min(15, Math.round(((wind ?? 0) - 12) / 2));
-    if (extra > 0) { score -= extra; reasons.push("Rain + wind combo"); }
+    if (extra > 0) {
+      score -= extra;
+      reasons.push("Rain + wind combo");
+    }
   }
 
   // Saturation (last 6 hours total)
@@ -364,44 +370,47 @@ else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
   else if (last6hTotal >= 0.40) { score -= 15; reasons.push("Wet last 6 hours"); }
   else if (last6hTotal >= 0.20) { score -= 8; reasons.push("Damp last 6 hours"); }
 
-// Temperature penalties (F) — calibrated to new tiers:
-// 0–25 stay home, 26–39 sickos, 40–70 casuals, 71–100 bombs
-let tempPenalty = 0;
+  // Temperature penalties (F) — calibrated to new tiers:
+  // 0–25 stay home, 26–39 sickos, 40–70 casuals, 71–100 bombs
+  let tempPenalty = 0;
 
-if (temp < 30) { tempPenalty = 85; reasons.push("0–30°F"); }          // ~15
-else if (temp < 38) { tempPenalty = 70; reasons.push("30–38°F"); }     // ~30
-else if (temp < 42) { tempPenalty = 62; reasons.push("38–42°F"); }     // ~38
-else if (temp < 50) { tempPenalty = 45; reasons.push("42–50°F"); }     // ~55
-else if (temp < 60) { tempPenalty = 20; reasons.push("50–60°F"); }     // ~80
-else if (temp <= 80) { tempPenalty = 0; /* perfect */ }               // ~100
-else if (temp <= 95) { tempPenalty = 20; reasons.push("80–95°F"); }    // ~80
-else if (temp <= 110) { tempPenalty = 70; reasons.push("95–110°F"); }  // ~30
-else { tempPenalty = 85; reasons.push("110°F+"); }                     // ~15
+  if (temp < 30) { tempPenalty = 85; reasons.push("0–30°F"); }           // ~15
+  else if (temp < 38) { tempPenalty = 70; reasons.push("30–38°F"); }     // ~30
+  else if (temp < 42) { tempPenalty = 62; reasons.push("38–42°F"); }     // ~38
+  else if (temp < 50) { tempPenalty = 45; reasons.push("42–50°F"); }     // ~55
+  else if (temp < 60) { tempPenalty = 20; reasons.push("50–60°F"); }     // ~80
+  else if (temp <= 80) { tempPenalty = 0; /* perfect */ }
+  else if (temp <= 95) { tempPenalty = 20; reasons.push("80–95°F"); }    // ~80
+  else if (temp <= 110) { tempPenalty = 70; reasons.push("95–110°F"); }  // ~30
+  else { tempPenalty = 85; reasons.push("110°F+"); }                     // ~15
 
-score -= tempPenalty;
+  score -= tempPenalty;
 
-
-
+  // clamp
   score = Math.max(0, Math.min(100, Math.round(score)));
 
- function tierForScore(score){
-  if (score <= 25) return "STAY_HOME";
-  if (score <= 39) return "SICKOS";
-  if (score <= 70) return "CASUALS";
-  return "BOMBS";
-}
+  // Tier mapping (new)
+  function tierForScore(s){
+    if (s <= 25) return "STAY_HOME";
+    if (s <= 39) return "SICKOS";
+    if (s <= 70) return "CASUALS";
+    return "BOMBS";
+  }
+  const tier = tierForScore(score);
 
-
+  // Copy per tier
   const lines = {
-    YES: ["💣 Bombs away.", "💣 Bombs away — go play.", "💣 Full send."],
-    MAYBE: ["🏠 Casuals can stay home.", "🏠 Casuals can stay home — you decide.", "🏠 If you're on the fence, stay home."],
+    BOMBS: ["💣 Bombs away.", "💣 Bombs away — go play.", "💣 Full send."],
+    CASUALS: ["🏠 Casuals stay home.", "🏠 Casuals stay home — you decide.", "🏠 If you're on the fence, stay home."],
     SICKOS: ["🧢 Sickos only.", "🧢 Sickos only — respect.", "🧢 This round builds character."],
-    NO: ["🏌️‍♂️ Indoor simulator will have to do.", "🏌️‍♂️ Simulator day.", "🏌️‍♂️ Indoor sim is calling."]
+    STAY_HOME: ["🚫 Stay home.", "🚫 Not worth it.", "🚫 Indoor simulator time."]
   };
 
   const verdict = lines[tier][Math.floor(Math.random()*lines[tier].length)];
   const summary = reasons.length ? reasons.join(", ") : "Near-ideal conditions";
   return { score, verdict, summary, last6hTotal: Number(last6hTotal.toFixed(2)) };
+}
+
 }
 
 async function runCheck(){
