@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Can I Golf Here?</title>
+<style>
+  *{ box-sizing:border-box; }
+  :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:#f5f5f5; }
+  .card{
+    width:min(980px,92vw);
+    background:#fff;
+    border-radius:24px;
+    padding:36px;
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+    border:1px solid #ededed;
+  }
+  h1{ margin:0 0 14px; font-size:44px; letter-spacing:-0.02em; }
+  p{ margin:0 0 22px; font-size:20px; color:#333; line-height:1.35; }
+
+  .row{
+    display:flex;
+    align-items:center;
+    width:100%;
+    gap:16px;
+  }
+  .row > * + *{ margin-left:16px; }
+  @supports (gap: 16px) { .row > * + *{ margin-left:0; } }
+
+  .input-wrap{
+    flex:1 1 auto;
+    min-width:0;
+    position:relative;
+  }
+  input{
+    width:100%;
+    padding:18px 20px;
+    border-radius:18px;
+    border:2px solid #e5e5e5;
+    font-size:22px;
+    outline:none;
+    background:#fff;
+  }
+  input:focus{ border-color:#cfd8ff; box-shadow:0 0 0 4px rgba(99,102,241,.12); }
+  button{
+    flex:0 0 160px;
+    width:160px;
+    padding:18px 0;
+    border-radius:18px;
+    border:0;
+    background:#167a3f;
+    color:#fff;
+    font-size:22px;
+    font-weight:700;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  button:hover{ background:#146b37; }
+
+  .dropdown{
+    position:absolute;
+    top:calc(100% + 8px);
+    left:0;
+    right:0;
+    background:#fff;
+    border:1px solid #e5e5e5;
+    border-radius:14px;
+    box-shadow:0 10px 20px rgba(0,0,0,.10);
+    max-height:240px;
+    overflow-y:auto;
+    display:none;
+    z-index:100;
+  }
+  .item{
+    padding:12px 16px;
+    cursor:pointer;
+    font-size:16px;
+    line-height:1.2;
+    border-top:1px solid #f2f2f2;
+  }
+  .item:first-child{ border-top:0; }
+  .item:hover, .item.active{ background:#f2f6ff; }
+  .sub{ display:block; font-size:12px; color:#666; margin-top:4px; }
+
+  #status{ margin-top:14px; color:#666; font-size:14px; min-height:18px; }
+  #out{
+    display:none;
+    margin-top:18px;
+    padding:16px;
+    border-radius:16px;
+    border:1px solid #e9e9e9;
+    background:#fafafa;
+  }
+  #scoreline{ font-size:28px; font-weight:900; margin-bottom:8px; letter-spacing:-0.01em; }
+  #headline{ font-size:18px; font-weight:800; margin-bottom:8px; }
+  #details{ font-size:14px; color:#333; display:grid; gap:6px; }
+  #why{ font-size:13px; color:#666; margin-top:10px; }
+
+  .scoring{
+    margin-top:28px;
+    color:#444;
+    font-size:18px;
+  }
+  .scoring ul{ margin:10px 0 0 22px; }
+  .scoring li{ margin:6px 0; }
+  .fineprint{ margin-top:16px; color:#666; font-size:18px; }
+  code{ background:#f0f0f0; padding:2px 6px; border-radius:6px; }
+  .hint{
+    margin-top:10px;
+    color:#666;
+    font-size:14px;
+  }
+  .hint button{
+    all:unset;
+    color:#167a3f;
+    font-weight:700;
+    cursor:pointer;
+    text-decoration:underline;
+    margin-left:6px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Can I Golf Here?</h1>
+  <p>Type a <strong>city</strong> or <strong>ZIP</strong> to see an area's golfability score based on weather conditions</p>
+
+  <form id="form" class="row" action="javascript:void(0);">
+    <div class="input-wrap">
+      <input id="loc" placeholder="e.g., 11222 or Denver, CO" autocomplete="off" />
+      <div id="dropdown" class="dropdown"></div>
+    </div>
+    <button type="submit">Check</button>
+  </form>
+
+  <div class="hint">
+    Want the distance from you to the searched location?
+    <button type="button" id="enableLocBtn">Enable location</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="out">
+    <div id="scoreline"></div>
+    <div id="headline"></div>
+    <div id="details"></div>
+    <div id="why"></div>
+  </div>
+
+  <div class="scoring">
+    <strong>Scoring (v4):</strong>
+    <ul>
+      <li>Starts at <strong>100</strong> and subtracts points for adverse weather conditions</li>
+      <li><strong>Score 70–100</strong>: bombs away</li>
+      <li><strong>Score 40–69</strong>: gear up and get out there</li>
+      <li><strong>Score 25–39</strong>: sickos only</li>
+      <li><strong>Score 0–24</strong>: hit the simulator</li>
+    </ul>
+    <div class="fineprint">This is weather-only. Courses can still be closed for other reasons.</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+let selected = null;
+let items = [];
+let activeIndex = -1;
+let timer = null;
+
+// User location cache
+let userCoords = null;      // {lat, lon}
+let userLocDenied = false;
+let userLocInFlight = null;
+
+const US_STATES = {
+  "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware",
+  "FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky",
+  "LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri",
+  "MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina",
+  "ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota",
+  "TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming",
+  "DC":"District of Columbia"
+};
+
+function normalizeQuery(q){
+  let parts = q.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length >= 3) parts = parts.slice(0,2);
+  if (parts.length === 2) {
+    const st = parts[1].toUpperCase();
+    if (US_STATES[st]) parts[1] = US_STATES[st];
+  }
+  return parts.join(", ").trim();
+}
+
+function showStatus(msg){ $("status").textContent = msg || ""; }
+
+function ddHide(){
+  const box = $("dropdown");
+  box.style.display = "none";
+  box.innerHTML = "";
+  items = [];
+  activeIndex = -1;
+}
+
+function ddRender(list){
+  const box = $("dropdown");
+  if (!list.length){ ddHide(); return; }
+
+  box.innerHTML = list.map((it, i) => {
+    const label = [it.name, it.admin1].filter(Boolean).join(", ");
+    const sub = it.country ? `<span class="sub">${it.country}</span>` : "";
+    return `<div class="item" data-i="${i}">${label}${sub}</div>`;
+  }).join("");
+
+  box.style.display = "block";
+
+  box.querySelectorAll(".item").forEach(el => {
+    el.addEventListener("mousedown", () => {
+      const i = Number(el.dataset.i);
+      pickSuggestion(i, { runImmediately: true });
+    });
+  });
+}
+
+function setActive(idx){
+  const box = $("dropdown");
+  const els = Array.from(box.querySelectorAll(".item"));
+  els.forEach(el => el.classList.remove("active"));
+  if (idx >= 0 && els[idx]) {
+    els[idx].classList.add("active");
+    els[idx].scrollIntoView({ block: "nearest" });
+  }
+}
+
+function pickSuggestion(i, opts = { runImmediately: false }){
+  const it = items[i];
+  if (!it) return;
+  selected = it;
+  $("loc").value = normalizeQuery([it.name, it.admin1].filter(Boolean).join(", "));
+  ddHide();
+  if (opts.runImmediately) runCheck();
+}
+
+async function searchLocations(query){
+  const cleaned = normalizeQuery(query);
+  const parts = cleaned.split(",").map(s => s.trim()).filter(Boolean);
+  const city = parts[0] || cleaned;
+  const state = parts.length >= 2 ? parts[1] : null;
+
+  const candidates = [];
+  candidates.push(cleaned);
+  if (state) candidates.push(`${city} ${state}`);
+  candidates.push(city);
+
+  async function attempt(name){
+    const url = "https://geocoding-api.open-meteo.com/v1/search?format=json&count=12&name="
+      + encodeURIComponent(name) + "&country=US";
+    const res = await fetch(url, { headers: { "Accept": "application/json" }});
+    if (!res.ok) throw new Error("Geocoding failed (" + res.status + ")");
+    const data = await res.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+    return results.map(r => ({
+      name: r.name,
+      admin1: r.admin1 || "",
+      country: r.country || "",
+      lat: Number(r.latitude),
+      lon: Number(r.longitude)
+    }));
+  }
+
+  let results = [];
+  for (const c of candidates) {
+    results = await attempt(c);
+    if (results.length) break;
+  }
+
+  if (state && results.length) {
+    const filtered = results.filter(r => (r.admin1 || "").toLowerCase().includes(state.toLowerCase()));
+    if (filtered.length) results = filtered;
+  }
+
+  return results;
+}
+
+async function geocodeTyped(query){
+  const cleaned = normalizeQuery(query);
+  const results = await searchLocations(cleaned);
+  if (!results.length) return null;
+
+  const parts = cleaned.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const city = parts[0].toLowerCase();
+    const st = parts[1].toLowerCase();
+    const match = results.find(r =>
+      (r.name || "").toLowerCase() === city &&
+      (r.admin1 || "").toLowerCase().includes(st)
+    );
+    if (match) return match;
+  }
+  return results[0];
+}
+
+async function getWeather(lat, lon){
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    current: "temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,snow_depth",
+    hourly: "precipitation",
+    past_days: "1",
+    forecast_hours: "12",
+    temperature_unit: "fahrenheit",
+    windspeed_unit: "mph",
+    precipitation_unit: "inch",
+    timezone: "auto"
+  });
+  const url = "https://api.open-meteo.com/v1/forecast?" + params.toString();
+  const res = await fetch(url, { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Weather fetch failed (" + res.status + ")");
+  return await res.json();
+}
+
+function isoDate(d){
+  const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  return z.toISOString().slice(0,10);
+}
+
+function maxOf(arr){
+  if (!Array.isArray(arr) || !arr.length) return null;
+  let m = null;
+  for (const v of arr) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    if (m === null || n > m) m = n;
+  }
+  return m;
+}
+
+function lastFinite(arr){
+  if (!Array.isArray(arr) || !arr.length) return null;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const n = Number(arr[i]);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+async function fetchHistoricalSnow(lat, lon, model){
+  const today = new Date();
+  const end = new Date(today); end.setDate(end.getDate() - 5);
+  const start = new Date(today); start.setDate(start.getDate() - 28);
+
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    start_date: isoDate(start),
+    end_date: isoDate(end),
+    hourly: "snow_depth,temperature_2m",
+    timezone: "auto",
+    temperature_unit: "fahrenheit"
+  });
+
+  if (model) params.set("models", model);
+
+  const url = "https://archive-api.open-meteo.com/v1/archive?" + params.toString();
+  const res = await fetch(url, { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Historical snow fetch failed (" + res.status + ")");
+  return await res.json();
+}
+
+async function getSnowContext(lat, lon){
+  // The archive API can include tiny non-zero snow depths due to model noise.
+  // To reduce false positives (eg warm coastal areas), we only infer "standing snow"
+  // if snow is BOTH recent (within the last 7 days of available archive data)
+  // AND meaningfully above noise.
+  const modelsToTry = ["era5_land", "era5", null];
+  let data = null;
+  let usedModel = "best_match";
+
+  for (const m of modelsToTry) {
+    try {
+      data = await fetchHistoricalSnow(lat, lon, m);
+      usedModel = m || "best_match";
+      const sd = data?.hourly?.snow_depth;
+      const tf = data?.hourly?.temperature_2m;
+      if (Array.isArray(sd) && sd.length && Array.isArray(tf) && tf.length) break;
+      data = null;
+    } catch(_) {
+      data = null;
+    }
+  }
+
+  if (!data) return { ok:false, inferredSnow:false, inferredSnowIn:0, usedModel:"—" };
+
+  const snowDepthM = data.hourly?.snow_depth || [];
+  const tempF = data.hourly?.temperature_2m || [];
+
+  // Focus on "recent" archive window: last 7 days of returned hourly data
+  const windowHours = 7 * 24;
+  const startIdx = Math.max(0, snowDepthM.length - windowHours);
+
+  const snowWin = snowDepthM.slice(startIdx);
+  const tempWin = tempF.slice(startIdx);
+
+  const maxSnowM = maxOf(snowWin) ?? 0;
+  const maxTempF = maxOf(tempWin) ?? 0;
+
+  // Noise gate:
+  // - Treat < ~1.2 in as likely noise unless the window is cold.
+  // - Treat >= ~2.0 in as real.
+  const THRESH_STRONG = 0.0508; // 2.0 in
+  const THRESH_WEAK = 0.0305;   // 1.2 in
+  const COLD_ENOUGH = 40;       // F
+
+  let inferredSnow = false;
+
+  if (maxSnowM >= THRESH_STRONG) {
+    inferredSnow = true;
+  } else if (maxSnowM >= THRESH_WEAK && maxTempF <= COLD_ENOUGH) {
+    // modest snow + cold window -> likely standing snow
+    inferredSnow = true;
+  } else {
+    inferredSnow = false;
+  }
+
+  const inferredSnowIn = inferredSnow ? (maxSnowM * 39.3701) : 0;
+
+  return { ok:true, inferredSnow, inferredSnowIn, usedModel };
+}
+
+function metersToInches(m){ return m * 39.3700787402; }
+
+// Distance helpers
+function toRad(deg){ return deg * Math.PI / 180; }
+function haversineMiles(lat1, lon1, lat2, lon2){
+  const R = 3958.7613;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+function requestUserCoords(){
+  if (userCoords) return Promise.resolve(userCoords);
+  if (userLocDenied) return Promise.resolve(null);
+  if (userLocInFlight) return userLocInFlight;
+  if (!navigator.geolocation) return Promise.resolve(null);
+
+  userLocInFlight = new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        userLocInFlight = null;
+        resolve(userCoords);
+      },
+      (err) => {
+        if (err && err.code === 1) userLocDenied = true;
+        userLocInFlight = null;
+        resolve(null);
+      },
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }
+    );
+  });
+
+  return userLocInFlight;
+}
+
+function golfabilityScore(current, hourly, snowCtx){
+  const temp = Number(current.temperature_2m);
+  const precip = Number(current.precipitation) || 0;
+  const wind = Number(current.wind_speed_10m) || 0;
+  const gust = Number(current.wind_gusts_10m) || 0;
+  const snowDepthM = Number(current.snow_depth ?? 0) || 0;
+
+  let score = 100;
+  const reasons = [];
+
+  if (snowDepthM > 0 || (snowCtx && snowCtx.inferredSnow)) {
+    return { score:0, tier:"STAY_HOME", verdict:"🎮 Hit the simulator.", summary:"Standing snow inferred", last6hTotal:0, hardStop:true };
+  }
+
+  if (precip >= 0.25) { score -= 80; reasons.push("Heavy rain"); }
+  else if (precip > 0.10) { score -= 55; reasons.push("Steady rain"); }
+  else if (precip > 0.02) { score -= 25; reasons.push("Light rain"); }
+  else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
+
+  let windPenalty = 0;
+  if (gust >= 35) { windPenalty = 35; reasons.push("Very gusty"); }
+  else if (gust >= 30) { windPenalty = 25; reasons.push("Gusty"); }
+  else if (wind >= 20) { windPenalty = 20; reasons.push("Windy"); }
+  else if (wind >= 15) { windPenalty = 10; reasons.push("Breezy"); }
+  score -= windPenalty;
+
+  let last6hTotal = 0;
+  try {
+    if (hourly && Array.isArray(hourly.time) && Array.isArray(hourly.precipitation) && current.time) {
+      const idx = hourly.time.indexOf(current.time);
+      if (idx !== -1) {
+        const start = Math.max(0, idx - 6);
+        for (let i = start; i < idx; i++) last6hTotal += (hourly.precipitation[i] || 0);
+      }
+    }
+  } catch(_) {}
+
+  if (last6hTotal >= 0.75) { score -= 25; reasons.push("Soaked last 6 hours"); }
+  else if (last6hTotal >= 0.40) { score -= 15; reasons.push("Wet last 6 hours"); }
+  else if (last6hTotal >= 0.20) { score -= 8; reasons.push("Damp last 6 hours"); }
+
+  let tempPenalty = 0;
+  if (temp < 30) { tempPenalty = 85; reasons.push("0–30°F"); }
+  else if (temp < 38) { tempPenalty = 70; reasons.push("30–38°F"); }
+  else if (temp < 42) { tempPenalty = 62; reasons.push("38–42°F"); }
+  else if (temp < 50) { tempPenalty = 45; reasons.push("42–50°F"); }
+  else if (temp < 60) { tempPenalty = 20; reasons.push("50–60°F"); }
+  else if (temp <= 80) { tempPenalty = 0; }
+  else if (temp <= 95) { tempPenalty = 20; reasons.push("80–95°F"); }
+  else if (temp <= 110) { tempPenalty = 70; reasons.push("95–110°F"); }
+  else { tempPenalty = 85; reasons.push("110°F+"); }
+  score -= tempPenalty;
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  function tierForScore(s){
+    if (s <= 24) return "STAY_HOME";
+    if (s <= 39) return "SICKOS";
+    if (s <= 69) return "CASUALS";
+    return "BOMBS";
+  }
+  const tier = tierForScore(score);
+
+  const lines = {
+    BOMBS: ["💣 Bombs away.", "💣 Bombs away — go play.", "💣 Full send."],
+    CASUALS: ["⛳️ Gear up and get out there.", "⛳️ Totally playable — bring a layer.", "⛳️ Not perfect, but it plays."],
+    SICKOS: ["🧢 Sickos only.", "🧢 Sickos only — respect.", "🧢 This round builds character."],
+    STAY_HOME: ["🎮 Hit the simulator.", "🎮 Simulator day.", "🎮 Indoor sim is calling."]
+  };
+
+  const verdict = lines[tier][Math.floor(Math.random()*lines[tier].length)];
+  const summary = reasons.length ? reasons.join(", ") : "Near-ideal conditions";
+  return { score, tier, verdict, summary, last6hTotal: Number(last6hTotal.toFixed(2)), hardStop:false };
+}
+
+async function runCheck(){
+  const raw = $("loc").value.trim();
+  if (!raw) return;
+
+  $("out").style.display = "none";
+  showStatus("Checking…");
+
+  try {
+    const geo = selected ? selected : await geocodeTyped(raw);
+    if (!geo) {
+      showStatus("Couldn’t find that location. Try a ZIP code or a more specific city/state.");
+      return;
+    }
+
+    const userLocPromise = requestUserCoords();
+    const [wx, snowCtx, myLoc] = await Promise.all([
+      getWeather(geo.lat, geo.lon),
+      getSnowContext(geo.lat, geo.lon),
+      userLocPromise
+    ]);
+
+    const cur = wx.current || {};
+    const decision = golfabilityScore(cur, wx.hourly, snowCtx);
+
+    const snowDepthM = Number(cur.snow_depth ?? 0) || 0;
+    const snowInForecast = metersToInches(snowDepthM);
+
+    const inferredNote = snowCtx?.ok
+      ? (snowCtx.inferredSnow ? `${snowCtx.inferredSnowIn.toFixed(1)} in (inferred)` : "0 (no inferred snow)")
+      : "Unavailable";
+
+    
+
+    // Google Maps links
+    const destName = [geo.name, geo.admin1].filter(Boolean).join(", ");
+    const destLatLon = `${geo.lat},${geo.lon}`;
+
+    const golfUrl =
+      "https://www.google.com/maps/search/?api=1" +
+      "&query=" + encodeURIComponent("public golf courses near " + destName);
+
+    // Directions: if we have your location, include origin; otherwise let Google infer it
+    let directionsUrl =
+      "https://www.google.com/maps/dir/?api=1" +
+      "&destination=" + encodeURIComponent(destLatLon) +
+      "&travelmode=driving";
+
+    let distanceLine = "";
+    if (myLoc && !userLocDenied) {
+      const miles = haversineMiles(myLoc.lat, myLoc.lon, geo.lat, geo.lon);
+      const km = miles * 1.60934;
+      const origin = `${myLoc.lat},${myLoc.lon}`;
+      directionsUrl =
+        "https://www.google.com/maps/dir/?api=1" +
+        "&origin=" + encodeURIComponent(origin) +
+        "&destination=" + encodeURIComponent(destLatLon) +
+        "&travelmode=driving";
+
+      distanceLine = `<div><strong>Distance from you:</strong> <a href="${directionsUrl}" target="_blank" rel="noopener">${miles.toFixed(1)} mi (${km.toFixed(1)} km)</a></div>`;
+    } else if (userLocDenied) {
+      distanceLine = `<div><strong>Distance from you:</strong> <span style="color:#777">location permission denied</span></div>`;
+    } else {
+      distanceLine = `<div><strong>Distance from you:</strong> <span style="color:#777">enable location to see distance</span></div>`;
+    }
+
+    const golfLine = `<div><strong>Golf near destination:</strong> <a href="${golfUrl}" target="_blank" rel="noopener">Public courses near ${destName}</a></div>`;
+
+    const distHtml = distanceLine + golfLine;
+$("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
+    $("headline").textContent = decision.verdict;
+    $("details").innerHTML = `
+      <div><strong>Location:</strong> ${[geo.name, geo.admin1, geo.country].filter(Boolean).join(", ")}</div>
+      ${distHtml}
+      <div><strong>Now:</strong> ${cur.temperature_2m ?? "—"}°F, wind ${cur.wind_speed_10m ?? "—"} mph (gusts ${cur.wind_gusts_10m ?? "—"}), precip ${(Number(cur.precipitation ?? 0)).toFixed(2)} in/hr</div>
+<div><strong>Standing snow (inferred):</strong> ${inferredNote}</div>
+      <div><strong>Last 6h rain:</strong> ${(decision.last6hTotal ?? 0).toFixed(2)} in</div>
+      <div><strong>As of:</strong> ${cur.time ?? "—"} (${wx.timezone || "local"})</div>
+    `;
+    $("why").textContent = "What influenced the score: " + decision.summary;
+
+    showStatus("");
+    $("out").style.display = "block";
+  } catch (e) {
+    showStatus("Something went wrong: " + (e?.message || String(e)));
+  }
+}
+
+$("enableLocBtn").addEventListener("click", async () => {
+  const before = userCoords;
+  const loc = await requestUserCoords();
+  if (loc && !before) showStatus("Location enabled. Run a search to see distance.");
+  else if (!loc && userLocDenied) showStatus("Location permission denied in your browser settings.");
+  else if (!loc) showStatus("Couldn’t get your location.");
+});
+
+$("loc").addEventListener("input", () => {
+  selected = null;
+  const q = $("loc").value.trim();
+  if (timer) clearTimeout(timer);
+  if (q.length < 2) { ddHide(); return; }
+  timer = setTimeout(async () => {
+    try {
+      const res = await searchLocations(q);
+      items = res.slice(0, 6);
+      activeIndex = -1;
+      ddRender(items);
+    } catch (_) {
+      ddHide();
+    }
+  }, 200);
+});
+
+$("loc").addEventListener("keydown", (e) => {
+  const visible = $("dropdown").style.display !== "none";
+  if (visible && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    e.preventDefault();
+    if (!items.length) return;
+    if (e.key === "ArrowDown") activeIndex = Math.min(items.length - 1, activeIndex + 1);
+    if (e.key === "ArrowUp") activeIndex = Math.max(0, activeIndex - 1);
+    setActive(activeIndex);
+    return;
+  }
+  if (e.key === "Escape") { ddHide(); return; }
+  if (e.key === "Enter") {
+    if (visible && items.length) {
+      e.preventDefault();
+      const pick = activeIndex >= 0 ? activeIndex : 0;
+      pickSuggestion(pick, { runImmediately: true });
+      return;
+    }
+  }
+});
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  ddHide();
+  runCheck();
+});
+
+document.addEventListener("click", (e) => {
+  const box = $("dropdown");
+  const input = $("loc");
+  if (!box.contains(e.target) && e.target !== input) ddHide();
+});
+</script>
+</body>
+</html>
