@@ -17,7 +17,6 @@
     border:1px solid #ededed;
   }
   h1{ margin:0 0 14px; font-size:44px; letter-spacing:-0.02em; }
-  .badge{ font-size:14px; padding:6px 10px; background:#eee; border-radius:999px; margin-left:12px; vertical-align:middle; font-weight:700; }
   p{ margin:0 0 22px; font-size:20px; color:#333; line-height:1.35; }
 
   .row{
@@ -26,7 +25,6 @@
     width:100%;
     gap:16px;
   }
-  /* gap fallback */
   .row > * + *{ margin-left:16px; }
   @supports (gap: 16px) { .row > * + *{ margin-left:0; } }
 
@@ -112,8 +110,8 @@
 </head>
 <body>
 <div class="card">
-  <h1>Can I Golf Here? <span class="badge">MVP</span></h1>
-  <p>Type a <strong>city</strong> or <strong>ZIP</strong>, and this will answer <strong>Yes/No</strong> based on current weather.</p>
+  <h1>Can I Golf Here?</h1>
+  <p>Type a <strong>city</strong> or <strong>ZIP</strong> to see an area's golfability score based on weather conditions.</p>
 
   <form id="form" class="row" action="javascript:void(0);">
     <div class="input-wrap">
@@ -133,13 +131,14 @@
   </div>
 
   <div class="scoring">
-    <strong>Scoring (v2):</strong>
+    <strong>Scoring (v3):</strong>
     <ul>
       <li>Starts at <strong>100</strong> and subtracts points for adverse weather conditions</li>
-      <li><strong>Score ≥ 75</strong>: bombs away</li>
-      <li><strong>Score 60–74</strong>: casuals can stay home</li>
-      <li><strong>Score 40–59</strong>: sickos only</li>
-      <li><strong>Score &lt; 40</strong>: indoor simulator will have to do</li>
+      <li><strong>Score 71–100</strong>: bombs away</li>
+      <li><strong>Score 40–70</strong>: gear up and get out there</li>
+      <li><strong>Score 26–39</strong>: sickos only</li>
+      <li><strong>Score 0–25</strong>: simulator will have to do</li>
+      <li><strong>Any standing snow (measured or inferred)</strong>: score is forced to <strong>0</strong></li>
     </ul>
     <div class="fineprint">This is weather-only. Courses can still be closed for other reasons.</div>
   </div>
@@ -199,8 +198,8 @@ function ddRender(list){
   box.style.display = "block";
 
   box.querySelectorAll(".item").forEach(el => {
-    el.addEventListener("mousedown", (e) => {
-      // mousedown so it beats blur/click ordering
+    // pointerdown works on mouse + touch
+    el.addEventListener("pointerdown", () => {
       const i = Number(el.dataset.i);
       pickSuggestion(i, { runImmediately: true });
     });
@@ -229,10 +228,6 @@ function pickSuggestion(i, opts = { runImmediately: false }){
 async function searchLocations(query){
   const cleaned = normalizeQuery(query);
 
-  // Build fallback queries:
-  // 1) "City, State" (as typed/normalized)
-  // 2) "City State" (comma removed)
-  // 3) "City" (broad), then filter by state if provided
   const parts = cleaned.split(",").map(s => s.trim()).filter(Boolean);
   const city = parts[0] || cleaned;
   const state = parts.length >= 2 ? parts[1] : null;
@@ -245,7 +240,6 @@ async function searchLocations(query){
   async function attempt(name){
     const url = "https://geocoding-api.open-meteo.com/v1/search?format=json&count=12&name="
       + encodeURIComponent(name) + "&country=US";
-
     const res = await fetch(url, { headers: { "Accept": "application/json" }});
     if (!res.ok) throw new Error("Geocoding failed (" + res.status + ")");
     const data = await res.json();
@@ -265,7 +259,6 @@ async function searchLocations(query){
     if (results.length) break;
   }
 
-  // If user provided a state, prefer matches in that state
   if (state && results.length) {
     const filtered = results.filter(r => (r.admin1 || "").toLowerCase().includes(state.toLowerCase()));
     if (filtered.length) results = filtered;
@@ -279,7 +272,6 @@ async function geocodeTyped(query){
   const results = await searchLocations(cleaned);
   if (!results.length) return null;
 
-  // Prefer exact-ish match for "City, State"
   const parts = cleaned.split(",").map(s => s.trim()).filter(Boolean);
   if (parts.length >= 2) {
     const city = parts[0].toLowerCase();
@@ -297,15 +289,20 @@ async function getWeather(lat, lon){
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
+
     current: "temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,snow_depth",
     hourly: "precipitation",
-    past_days: "1",
+    daily: "snowfall_sum,temperature_2m_max",
+
+    past_days: "45",
     forecast_hours: "12",
+
     temperature_unit: "fahrenheit",
     windspeed_unit: "mph",
     precipitation_unit: "inch",
     timezone: "auto"
   });
+
   const url = "https://api.open-meteo.com/v1/forecast?" + params.toString();
   const res = await fetch(url, { headers: { "Accept": "application/json" }});
   if (!res.ok) throw new Error("Weather fetch failed (" + res.status + ")");
@@ -313,24 +310,60 @@ async function getWeather(lat, lon){
 }
 
 function metersToInches(m){ return m * 39.3700787402; }
+function cmToInches(cm){ return cm * 0.3937007874; }
+
+// Infer “standing snow” from daily snowfall + daily max temps.
+// If we infer ANY snowpack remaining, treat as snow on ground.
+function inferStandingSnow(wx){
+  const curDepthM = Number(wx?.current?.snow_depth ?? 0);
+  if (Number.isFinite(curDepthM) && curDepthM > 0.001) {
+    return { hasSnow: true, inferredIn: metersToInches(curDepthM), note: "measured snow_depth" };
+  }
+
+  const daily = wx?.daily;
+  if (!daily || !Array.isArray(daily.time) || !Array.isArray(daily.snowfall_sum) || !Array.isArray(daily.temperature_2m_max)) {
+    return { hasSnow: false, inferredIn: 0, note: "no daily data" };
+  }
+
+  // Very simple “snowpack” bookkeeping:
+  // snowpack += snowfall_in
+  // snowpack -= meltFactor * max(0, tmaxF - 32)
+  // Conservative so sub-freezing stretches keep snow alive.
+  const meltFactor = 0.08; // inches per degree-F above 32 per day (heuristic)
+
+  let snowpack = 0;
+  for (let i = 0; i < daily.time.length; i++){
+    const snowfallCm = Number(daily.snowfall_sum[i] || 0);
+    const tmaxF = Number(daily.temperature_2m_max[i]);
+
+    if (Number.isFinite(snowfallCm) && snowfallCm > 0) snowpack += cmToInches(snowfallCm);
+
+    if (Number.isFinite(tmaxF) && tmaxF > 32) {
+      snowpack -= (tmaxF - 32) * meltFactor;
+    }
+
+    if (snowpack < 0) snowpack = 0;
+  }
+
+  // You said: if any inferred snow -> score should be zero
+  const hasSnow = snowpack > 0;
+  return { hasSnow, inferredIn: Number(snowpack.toFixed(1)), note: hasSnow ? "inferred snowpack" : "none" };
+}
 
 function golfabilityScore(current, hourly){
   const temp = current.temperature_2m;
   const precip = current.precipitation; // in/hr
   const wind = current.wind_speed_10m;
   const gust = current.wind_gusts_10m;
-  const snowDepthM = current.snow_depth ?? 0;
 
   let score = 100;
   const reasons = [];
 
-  if (snowDepthM > 0) { score -= 100; reasons.push("Snow on the ground"); }
-
-  // Rain intensity scaling
-  if (precip > 0.25) { score -= 60; reasons.push("Heavy rain"); }
-  else if (precip > 0.10) { score -= 30; reasons.push("Steady rain"); }
-  else if (precip > 0.02) { score -= 10; reasons.push("Light rain"); }
-  else if (precip > 0) { score -= 5; reasons.push("Drizzle"); }
+  // Rain intensity scaling (in/hr)
+  if (precip >= 0.25) { score -= 80; reasons.push("Heavy rain"); }
+  else if (precip > 0.10) { score -= 65; reasons.push("Steady rain"); }
+  else if (precip > 0.02) { score -= 25; reasons.push("Light rain"); }
+  else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
 
   // Wind penalty
   let windPenalty = 0;
@@ -362,28 +395,38 @@ function golfabilityScore(current, hourly){
   else if (last6hTotal >= 0.40) { score -= 15; reasons.push("Wet last 6 hours"); }
   else if (last6hTotal >= 0.20) { score -= 8; reasons.push("Damp last 6 hours"); }
 
-  // Your cold tolerance
-  if (temp <= 25) { score -= 35; reasons.push("Very cold"); }
-  else if (temp <= 32) { score -= 20; reasons.push("Freezing"); }
-  else if (temp <= 38) { score -= 5; reasons.push("Cold but playable"); }
-  else if (temp <= 45) { score -= 8; reasons.push("Chilly"); }
-  else if (temp >= 105) { score -= 40; reasons.push("Extreme heat"); }
-  else if (temp >= 100) { score -= 30; reasons.push("Extreme heat"); }
-  else if (temp >= 95) { score -= 18; reasons.push("Very hot"); }
-  else if (temp >= 90) { score -= 10; reasons.push("Hot"); }
+  // Temperature penalties (F) aligned to:
+  // 0–25 stay home, 26–39 sickos, 40–70 casuals, 71–100 bombs
+  let tempPenalty = 0;
 
+  if (temp < 30) { tempPenalty = 85; reasons.push("0–30°F"); }
+  else if (temp < 38) { tempPenalty = 70; reasons.push("30–38°F"); }
+  else if (temp < 42) { tempPenalty = 62; reasons.push("38–42°F"); }
+  else if (temp < 50) { tempPenalty = 45; reasons.push("42–50°F"); }
+  else if (temp < 60) { tempPenalty = 20; reasons.push("50–60°F"); }
+  else if (temp <= 80) { tempPenalty = 0; /* perfect */ }
+  else if (temp <= 95) { tempPenalty = 20; reasons.push("80–95°F"); }
+  else if (temp <= 110) { tempPenalty = 70; reasons.push("95–110°F"); }
+  else { tempPenalty = 85; reasons.push("110°F+"); }
+
+  score -= tempPenalty;
+
+  // clamp
   score = Math.max(0, Math.min(100, Math.round(score)));
 
-  let tier = "YES";
-  if (score < 40) tier = "NO";
-  else if (score < 60) tier = "SICKOS";
-  else if (score < 75) tier = "MAYBE";
+  function tierForScore(s){
+    if (s <= 25) return "STAY_HOME";
+    if (s <= 39) return "SICKOS";
+    if (s <= 70) return "CASUALS";
+    return "BOMBS";
+  }
+  const tier = tierForScore(score);
 
   const lines = {
-    YES: ["💣 Bombs away.", "💣 Bombs away — go play.", "💣 Full send."],
-    MAYBE: ["🏠 Casuals can stay home.", "🏠 Casuals can stay home — you decide.", "🏠 If you're on the fence, stay home."],
+    BOMBS: ["💣 Bombs away.", "💣 Bombs away — go play.", "💣 Full send."],
+    CASUALS: ["🧥 Gear up and get out there.", "🧥 Layer up — you’re fine.", "🧥 Not perfect, but very playable."],
     SICKOS: ["🧢 Sickos only.", "🧢 Sickos only — respect.", "🧢 This round builds character."],
-    NO: ["🏌️‍♂️ Indoor simulator will have to do.", "🏌️‍♂️ Simulator day.", "🏌️‍♂️ Indoor sim is calling."]
+    STAY_HOME: ["🏌️‍♂️ Simulator will have to do.", "🏌️‍♂️ Indoor sim is calling.", "🏌️‍♂️ Save it for another day."]
   };
 
   const verdict = lines[tier][Math.floor(Math.random()*lines[tier].length)];
@@ -399,7 +442,6 @@ async function runCheck(){
   showStatus("Checking…");
 
   try {
-    // If user picked a suggestion, trust its lat/lon
     let geo = selected ? selected : await geocodeTyped(raw);
     if (!geo) {
       showStatus("Couldn’t find that location. Try a ZIP code or a more specific city/state.");
@@ -408,21 +450,37 @@ async function runCheck(){
 
     const wx = await getWeather(geo.lat, geo.lon);
     const cur = wx.current || {};
-    const decision = golfabilityScore(cur, wx.hourly);
 
-    const snowDepthM = cur.snow_depth ?? 0;
-    const snowIn = metersToInches(snowDepthM);
+    const snow = inferStandingSnow(wx);
+
+    // Snow hard-stop: ANY inferred or measured snow => score 0
+    let decision;
+    if (snow.hasSnow || (Number(cur.snow_depth ?? 0) > 0.001)) {
+      decision = {
+        score: 0,
+        verdict: "🚫 Snow on the ground.",
+        summary: snow.note ? `${snow.note} (~${Number(snow.inferredIn || 0).toFixed(1)} in)` : "Snow on the ground",
+        last6hTotal: 0
+      };
+    } else {
+      decision = golfabilityScore(cur, wx.hourly);
+    }
 
     $("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
     $("headline").textContent = decision.verdict;
+
+    const precipNow = Number(cur.precipitation ?? 0);
+    const snowDepthM = Number(cur.snow_depth ?? 0);
+
     $("details").innerHTML = `
       <div><strong>Location:</strong> ${[geo.name, geo.admin1, geo.country].filter(Boolean).join(", ")}</div>
-      <div><strong>Now:</strong> ${cur.temperature_2m ?? "—"}°F, wind ${cur.wind_speed_10m ?? "—"} mph (gusts ${cur.wind_gusts_10m ?? "—"}), precip ${(cur.precipitation ?? 0).toFixed(2)} in/hr</div>
-      <div><strong>Snow depth:</strong> ${snowDepthM ? snowIn.toFixed(1) + " in" : "0"}</div>
-      <div><strong>Last 6h rain:</strong> ${decision.last6hTotal.toFixed(2)} in</div>
+      <div><strong>Now:</strong> ${cur.temperature_2m ?? "—"}°F, wind ${cur.wind_speed_10m ?? "—"} mph (gusts ${cur.wind_gusts_10m ?? "—"}), precip ${precipNow.toFixed(2)} in/hr</div>
+      <div><strong>Snow depth (reported):</strong> ${snowDepthM > 0 ? metersToInches(snowDepthM).toFixed(1) + " in" : "0"}</div>
+      <div><strong>Snow (inferred):</strong> ${snow.hasSnow ? (Number(snow.inferredIn).toFixed(1) + " in") : "none"}</div>
       <div><strong>As of:</strong> ${cur.time ?? "—"} (${wx.timezone || "local"})</div>
     `;
-    $("why").textContent = "What influenced the score: " + decision.summary;
+
+    $("why").textContent = "What influenced the score: " + (decision.summary || "—");
 
     showStatus("");
     $("out").style.display = "block";
@@ -461,11 +519,10 @@ $("loc").addEventListener("keydown", (e) => {
 
   if (e.key === "Escape") { ddHide(); return; }
 
-  // Enter behavior: if dropdown open, pick highlighted item; otherwise submit as typed
   if (e.key === "Enter") {
     if (visible && items.length) {
       e.preventDefault();
-      const pick = activeIndex >= 0 ? activeIndex : 0; // default to top suggestion
+      const pick = activeIndex >= 0 ? activeIndex : 0;
       pickSuggestion(pick, { runImmediately: true });
       return;
     }
