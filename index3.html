@@ -19,20 +19,11 @@
   h1{ margin:0 0 14px; font-size:44px; letter-spacing:-0.02em; }
   p{ margin:0 0 22px; font-size:20px; color:#333; line-height:1.35; }
 
-  .row{
-    display:flex;
-    align-items:center;
-    width:100%;
-    gap:16px;
-  }
+  .row{ display:flex; align-items:center; width:100%; gap:16px; }
   .row > * + *{ margin-left:16px; }
   @supports (gap: 16px) { .row > * + *{ margin-left:0; } }
 
-  .input-wrap{
-    flex:1 1 auto;
-    min-width:0;
-    position:relative;
-  }
+  .input-wrap{ flex:1 1 auto; min-width:0; position:relative; }
   input{
     width:100%;
     padding:18px 20px;
@@ -58,7 +49,6 @@
   }
   button:hover{ background:#146b37; }
 
-  /* Autocomplete dropdown */
   .dropdown{
     position:absolute;
     top:calc(100% + 8px);
@@ -98,11 +88,7 @@
   #details{ font-size:14px; color:#333; display:grid; gap:6px; }
   #why{ font-size:13px; color:#666; margin-top:10px; }
 
-  .scoring{
-    margin-top:28px;
-    color:#444;
-    font-size:18px;
-  }
+  .scoring{ margin-top:28px; color:#444; font-size:18px; }
   .scoring ul{ margin:10px 0 0 22px; }
   .scoring li{ margin:6px 0; }
   .fineprint{ margin-top:16px; color:#666; font-size:18px; }
@@ -138,7 +124,7 @@
       <li><strong>Score 40–70</strong>: gear up and get out there</li>
       <li><strong>Score 26–39</strong>: sickos only</li>
       <li><strong>Score 0–25</strong>: simulator will have to do</li>
-      <li><strong>Any standing snow (measured or inferred)</strong>: score is forced to <strong>0</strong></li>
+      <li><strong>Standing snow (measured or inferred)</strong>: score forced to <strong>0</strong></li>
     </ul>
     <div class="fineprint">This is weather-only. Courses can still be closed for other reasons.</div>
   </div>
@@ -147,10 +133,10 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
-let selected = null;        // selected suggestion object
-let items = [];             // current dropdown items
-let activeIndex = -1;       // keyboard highlight
-let timer = null;           // debounce timer
+let selected = null;
+let items = [];
+let activeIndex = -1;
+let timer = null;
 
 const US_STATES = {
   "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware",
@@ -163,11 +149,8 @@ const US_STATES = {
 };
 
 function normalizeQuery(q){
-  // If user pasted "City, State, Country" keep "City, State"
   let parts = q.split(",").map(s => s.trim()).filter(Boolean);
   if (parts.length >= 3) parts = parts.slice(0,2);
-
-  // Expand state abbreviations (MA -> Massachusetts)
   if (parts.length === 2) {
     const st = parts[1].toUpperCase();
     if (US_STATES[st]) parts[1] = US_STATES[st];
@@ -198,7 +181,6 @@ function ddRender(list){
   box.style.display = "block";
 
   box.querySelectorAll(".item").forEach(el => {
-    // pointerdown works on mouse + touch
     el.addEventListener("pointerdown", () => {
       const i = Number(el.dataset.i);
       pickSuggestion(i, { runImmediately: true });
@@ -227,7 +209,6 @@ function pickSuggestion(i, opts = { runImmediately: false }){
 
 async function searchLocations(query){
   const cleaned = normalizeQuery(query);
-
   const parts = cleaned.split(",").map(s => s.trim()).filter(Boolean);
   const city = parts[0] || cleaned;
   const state = parts.length >= 2 ? parts[1] : null;
@@ -285,87 +266,102 @@ async function geocodeTyped(query){
   return results[0];
 }
 
-async function getWeather(lat, lon){
+function fmtDate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+
+async function getForecast(lat, lon){
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-
     current: "temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,snow_depth",
     hourly: "precipitation",
-    daily: "snowfall_sum,temperature_2m_max",
-
-    past_days: "45",
+    past_days: "3",
     forecast_hours: "12",
-
     temperature_unit: "fahrenheit",
     windspeed_unit: "mph",
     precipitation_unit: "inch",
     timezone: "auto"
   });
-
   const url = "https://api.open-meteo.com/v1/forecast?" + params.toString();
   const res = await fetch(url, { headers: { "Accept": "application/json" }});
-  if (!res.ok) throw new Error("Weather fetch failed (" + res.status + ")");
+  if (!res.ok) throw new Error("Forecast fetch failed (" + res.status + ")");
+  return await res.json();
+}
+
+async function getArchiveDaily(lat, lon, daysBack=60){
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - daysBack);
+
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    start_date: fmtDate(start),
+    end_date: fmtDate(end),
+    daily: "snowfall_sum,temperature_2m_max",
+    temperature_unit: "fahrenheit",
+    timezone: "auto"
+  });
+
+  const url = "https://archive-api.open-meteo.com/v1/archive?" + params.toString();
+  const res = await fetch(url, { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Archive fetch failed (" + res.status + ")");
   return await res.json();
 }
 
 function metersToInches(m){ return m * 39.3700787402; }
 function cmToInches(cm){ return cm * 0.3937007874; }
 
-// Infer “standing snow” from daily snowfall + daily max temps.
-// If we infer ANY snowpack remaining, treat as snow on ground.
-function inferStandingSnow(wx){
-  const curDepthM = Number(wx?.current?.snow_depth ?? 0);
-  if (Number.isFinite(curDepthM) && curDepthM > 0.001) {
-    return { hasSnow: true, inferredIn: metersToInches(curDepthM), note: "measured snow_depth" };
+function inferStandingSnow(forecastWx, archiveWx){
+  const reportedM = Number(forecastWx?.current?.snow_depth ?? 0);
+  if (Number.isFinite(reportedM) && reportedM > 0.001) {
+    return { hasSnow: true, inferredIn: metersToInches(reportedM), source: "reported snow_depth" };
   }
 
-  const daily = wx?.daily;
-  if (!daily || !Array.isArray(daily.time) || !Array.isArray(daily.snowfall_sum) || !Array.isArray(daily.temperature_2m_max)) {
-    return { hasSnow: false, inferredIn: 0, note: "no daily data" };
+  const d = archiveWx?.daily;
+  if (!d || !Array.isArray(d.snowfall_sum) || !Array.isArray(d.temperature_2m_max)) {
+    return { hasSnow: false, inferredIn: 0, source: "no archive daily snowfall" };
   }
 
-  // Very simple “snowpack” bookkeeping:
-  // snowpack += snowfall_in
-  // snowpack -= meltFactor * max(0, tmaxF - 32)
-  // Conservative so sub-freezing stretches keep snow alive.
-  const meltFactor = 0.08; // inches per degree-F above 32 per day (heuristic)
-
+  // Snowpack model:
+  // + snowfall inches
+  // - melt using max temp above freezing
+  // tuned to keep snow around during long cold spells
+  const meltFactor = 0.06; // inches per degree-F above 32 per day (slower melt)
   let snowpack = 0;
-  for (let i = 0; i < daily.time.length; i++){
-    const snowfallCm = Number(daily.snowfall_sum[i] || 0);
-    const tmaxF = Number(daily.temperature_2m_max[i]);
 
-    if (Number.isFinite(snowfallCm) && snowfallCm > 0) snowpack += cmToInches(snowfallCm);
+  for (let i = 0; i < d.snowfall_sum.length; i++){
+    const sfCm = Number(d.snowfall_sum[i] || 0);
+    const tmax = Number(d.temperature_2m_max[i]);
 
-    if (Number.isFinite(tmaxF) && tmaxF > 32) {
-      snowpack -= (tmaxF - 32) * meltFactor;
-    }
+    if (Number.isFinite(sfCm) && sfCm > 0) snowpack += cmToInches(sfCm);
+    if (Number.isFinite(tmax) && tmax > 32) snowpack -= (tmax - 32) * meltFactor;
 
     if (snowpack < 0) snowpack = 0;
   }
 
-  // You said: if any inferred snow -> score should be zero
   const hasSnow = snowpack > 0;
-  return { hasSnow, inferredIn: Number(snowpack.toFixed(1)), note: hasSnow ? "inferred snowpack" : "none" };
+  return { hasSnow, inferredIn: Number(snowpack.toFixed(1)), source: "inferred from archive snowfall + temps" };
 }
 
 function golfabilityScore(current, hourly){
   const temp = current.temperature_2m;
-  const precip = current.precipitation; // in/hr
+  const precip = current.precipitation;
   const wind = current.wind_speed_10m;
   const gust = current.wind_gusts_10m;
 
   let score = 100;
   const reasons = [];
 
-  // Rain intensity scaling (in/hr)
   if (precip >= 0.25) { score -= 80; reasons.push("Heavy rain"); }
   else if (precip > 0.10) { score -= 65; reasons.push("Steady rain"); }
   else if (precip > 0.02) { score -= 25; reasons.push("Light rain"); }
   else if (precip > 0) { score -= 8; reasons.push("Drizzle"); }
 
-  // Wind penalty
   let windPenalty = 0;
   if ((gust ?? 0) >= 35) { windPenalty = 35; reasons.push("Very gusty"); }
   else if ((gust ?? 0) >= 30) { windPenalty = 25; reasons.push("Gusty"); }
@@ -373,13 +369,11 @@ function golfabilityScore(current, hourly){
   else if ((wind ?? 0) >= 15) { windPenalty = 10; reasons.push("Breezy"); }
   score -= windPenalty;
 
-  // Rain + wind combo
   if (precip > 0 && ((wind ?? 0) >= 15 || (gust ?? 0) >= 25)) {
     const extra = Math.min(15, Math.round(((wind ?? 0) - 12) / 2));
     if (extra > 0) { score -= extra; reasons.push("Rain + wind combo"); }
   }
 
-  // Saturation (last 6 hours total)
   let last6hTotal = 0;
   try {
     if (hourly && Array.isArray(hourly.time) && Array.isArray(hourly.precipitation) && current.time) {
@@ -395,23 +389,19 @@ function golfabilityScore(current, hourly){
   else if (last6hTotal >= 0.40) { score -= 15; reasons.push("Wet last 6 hours"); }
   else if (last6hTotal >= 0.20) { score -= 8; reasons.push("Damp last 6 hours"); }
 
-  // Temperature penalties (F) aligned to:
-  // 0–25 stay home, 26–39 sickos, 40–70 casuals, 71–100 bombs
   let tempPenalty = 0;
-
   if (temp < 30) { tempPenalty = 85; reasons.push("0–30°F"); }
   else if (temp < 38) { tempPenalty = 70; reasons.push("30–38°F"); }
   else if (temp < 42) { tempPenalty = 62; reasons.push("38–42°F"); }
   else if (temp < 50) { tempPenalty = 45; reasons.push("42–50°F"); }
   else if (temp < 60) { tempPenalty = 20; reasons.push("50–60°F"); }
-  else if (temp <= 80) { tempPenalty = 0; /* perfect */ }
+  else if (temp <= 80) { tempPenalty = 0; }
   else if (temp <= 95) { tempPenalty = 20; reasons.push("80–95°F"); }
   else if (temp <= 110) { tempPenalty = 70; reasons.push("95–110°F"); }
   else { tempPenalty = 85; reasons.push("110°F+"); }
 
   score -= tempPenalty;
 
-  // clamp
   score = Math.max(0, Math.min(100, Math.round(score)));
 
   function tierForScore(s){
@@ -442,42 +432,45 @@ async function runCheck(){
   showStatus("Checking…");
 
   try {
-    let geo = selected ? selected : await geocodeTyped(raw);
+    const geo = selected ? selected : await geocodeTyped(raw);
     if (!geo) {
       showStatus("Couldn’t find that location. Try a ZIP code or a more specific city/state.");
       return;
     }
 
-    const wx = await getWeather(geo.lat, geo.lon);
-    const cur = wx.current || {};
+    const [forecastWx, archiveWx] = await Promise.all([
+      getForecast(geo.lat, geo.lon),
+      getArchiveDaily(geo.lat, geo.lon, 60)
+    ]);
 
-    const snow = inferStandingSnow(wx);
+    const cur = forecastWx.current || {};
+    const snow = inferStandingSnow(forecastWx, archiveWx);
 
-    // Snow hard-stop: ANY inferred or measured snow => score 0
     let decision;
-    if (snow.hasSnow || (Number(cur.snow_depth ?? 0) > 0.001)) {
+    if (snow.hasSnow) {
       decision = {
         score: 0,
         verdict: "🚫 Snow on the ground.",
-        summary: snow.note ? `${snow.note} (~${Number(snow.inferredIn || 0).toFixed(1)} in)` : "Snow on the ground",
+        summary: `${snow.source} (~${Number(snow.inferredIn || 0).toFixed(1)} in)`,
         last6hTotal: 0
       };
     } else {
-      decision = golfabilityScore(cur, wx.hourly);
+      decision = golfabilityScore(cur, forecastWx.hourly);
     }
-
-    $("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
-    $("headline").textContent = decision.verdict;
 
     const precipNow = Number(cur.precipitation ?? 0);
     const snowDepthM = Number(cur.snow_depth ?? 0);
+
+    $("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
+    $("headline").textContent = decision.verdict;
 
     $("details").innerHTML = `
       <div><strong>Location:</strong> ${[geo.name, geo.admin1, geo.country].filter(Boolean).join(", ")}</div>
       <div><strong>Now:</strong> ${cur.temperature_2m ?? "—"}°F, wind ${cur.wind_speed_10m ?? "—"} mph (gusts ${cur.wind_gusts_10m ?? "—"}), precip ${precipNow.toFixed(2)} in/hr</div>
       <div><strong>Snow depth (reported):</strong> ${snowDepthM > 0 ? metersToInches(snowDepthM).toFixed(1) + " in" : "0"}</div>
-      <div><strong>Snow (inferred):</strong> ${snow.hasSnow ? (Number(snow.inferredIn).toFixed(1) + " in") : "none"}</div>
-      <div><strong>As of:</strong> ${cur.time ?? "—"} (${wx.timezone || "local"})</div>
+      <div><strong>Snowpack (inferred):</strong> ${snow.hasSnow ? (Number(snow.inferredIn).toFixed(1) + " in") : "none"}</div>
+      <div><strong>Inference source:</strong> ${snow.source}</div>
+      <div><strong>As of:</strong> ${cur.time ?? "—"} (${forecastWx.timezone || "local"})</div>
     `;
 
     $("why").textContent = "What influenced the score: " + (decision.summary || "—");
@@ -516,9 +509,7 @@ $("loc").addEventListener("keydown", (e) => {
     setActive(activeIndex);
     return;
   }
-
   if (e.key === "Escape") { ddHide(); return; }
-
   if (e.key === "Enter") {
     if (visible && items.length) {
       e.preventDefault();
