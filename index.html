@@ -183,7 +183,7 @@
 <body>
 <div class="card">
   <h1>Can I Golf Here?</h1>
-  <p>Type a <strong>city</strong>, <strong>ZIP</strong>, or a <strong>golf course</strong> to see an area's golfability index based on weather conditions</p>
+  <p>Type a <strong>city</strong>, <strong>ZIP</strong>, or a <strong>golf course</strong> to see an area's golfability score based on weather conditions</p>
 
   <form id="form" class="row" action="javascript:void(0);">
     <div class="input-wrap">
@@ -211,7 +211,7 @@
     <h2>Best time of year</h2>
     <div id="seasonSummary" class="summary"></div>
     <div id="monthGrid" class="months"></div>
-    <div class="note">Based on long‑term climate model averages. Day‑to‑day weather still varies. <strong>Numbers are average golfability indexes.</strong></div>
+    <div class="note">Based on long‑term climate model averages. Day‑to‑day weather still varies. <strong>Numbers are average golfability scores.</strong></div>
   </div>
 
   <div class="scoring">
@@ -889,7 +889,7 @@ async function runCheck(){
     const golfLine = `<div><strong>Golf near destination:</strong> <a href="${golfUrl}" target="_blank" rel="noopener">Public courses near ${destName}</a></div>`;
     const distHtml = distanceLine + golfLine;
 
-    $("scoreline").textContent = "Golfability Index: " + decision.score + "/100";
+    $("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
     $("headline").textContent = decision.verdict;
     $("details").innerHTML = `
       <div><strong>Location:</strong> ${[geo.name, geo.admin1, geo.country].filter(Boolean).join(", ")}</div>
