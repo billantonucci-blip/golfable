@@ -2,7 +2,7 @@
 <!doctype html>
 <html lang="en">
 <head>
- <link rel="icon" href="favicon.png" sizes="any">
+ <link rel="icon" href="favicon.ico" sizes="any">
 
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -132,7 +132,6 @@
   }
   .contact a{ color:inherit; text-decoration:underline; }
 
-
   /* Seasonal golf window */
   .season{
     display:none;
@@ -154,7 +153,7 @@
     position:relative;
     width:56px;
     height:44px;
-    padding:4px 6px 16px; /* extra bottom room so the score never collides with descenders */
+    padding:4px 6px 16px;
     border-radius:12px;
     border:1px solid #e5e5e5;
     background:#fff;
@@ -179,17 +178,16 @@
   .month.sickos{ background:#f1f0ff; border-color:#d9d6ff; }
   .month.sim{ background:#f6f6f6; border-color:#e6e6e6; color:#444; }
   .season .note{ margin-top:10px; font-size:12px; color:#666; }
-
 </style>
 </head>
 <body>
 <div class="card">
   <h1>Can I Golf Here?</h1>
-  <p>Type a <strong>city</strong> or <strong>ZIP</strong> to see an area's golfability score based on weather conditions</p>
+  <p>Type a <strong>city</strong>, <strong>ZIP</strong>, or a <strong>golf course</strong> to see an area's golfability score based on weather conditions</p>
 
   <form id="form" class="row" action="javascript:void(0);">
     <div class="input-wrap">
-      <input id="loc" placeholder="e.g., 11222 or Denver, CO" autocomplete="off" />
+      <input id="loc" placeholder="e.g., 11222, Denver, CO, or Bethpage Black" autocomplete="off" />
       <div id="dropdown" class="dropdown"></div>
     </div>
     <button type="submit">Check</button>
@@ -236,6 +234,59 @@ const $ = (id) => document.getElementById(id);
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+// --- Golf course search (Option A): Nominatim (OpenStreetMap) ---
+const GOLF_HINT = /\b(golf|course|club|cc|links|country\s+club|gc)\b/i;
+function isGolfyQuery(q){ return GOLF_HINT.test(q); }
+
+async function searchGolfCourses(query){
+  const q = String(query || "").trim();
+  if (!q) return [];
+
+  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2"
+    + "&limit=8"
+    + "&addressdetails=1"
+    + "&extratags=1"
+    + "&q=" + encodeURIComponent(q + " golf course");
+
+  const res = await fetch(url, { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Nominatim failed (" + res.status + ")");
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+
+  const mapped = data.map(r => {
+    const a = r.address || {};
+    const name = r.name || (r.display_name ? String(r.display_name).split(",")[0] : "Golf course");
+    const admin1 = a.state || a.region || a.county || "";
+    const country = a.country || "";
+    const cityish = a.city || a.town || a.village || a.hamlet || a.municipality || "";
+
+    const subParts = [];
+    if (cityish) subParts.push(cityish);
+    if (admin1 && admin1 !== cityish) subParts.push(admin1);
+
+    return {
+      kind: "course",
+      name,
+      admin1,
+      country,
+      subline: subParts.join(", "),
+      lat: Number(r.lat),
+      lon: Number(r.lon),
+      _class: r.class || "",
+      _type: r.type || ""
+    };
+  });
+
+  const golfOnly = mapped.filter(x =>
+    x._type === "golf_course" ||
+    x._class === "leisure" ||
+    /golf/i.test(x.name) ||
+    /golf/i.test(x.subline || "")
+  );
+
+  return (golfOnly.length ? golfOnly : mapped).slice(0, 6);
+}
+
 function seasonTier(score){
   if (score >= 70) return "bombs";
   if (score >= 40) return "gear";
@@ -246,7 +297,6 @@ function seasonTier(score){
 function monthNameRange(indices){
   const uniq = Array.from(new Set(indices)).sort((a,b)=>a-b);
   if (!uniq.length) return "";
-  // Build simple contiguous ranges like "Apr–Jun, Sep"
   const parts = [];
   let s = uniq[0], prev = uniq[0];
   for (let i = 1; i <= uniq.length; i++){
@@ -259,7 +309,6 @@ function monthNameRange(indices){
 }
 
 async function getClimateMonthProfile(lat, lon){
-  // Open‑Meteo Climate API: daily values, averaged into a 12‑month profile.
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
@@ -293,7 +342,7 @@ async function getClimateMonthProfile(lat, lon){
     const m = ts.length >= 7 ? (Number(ts.slice(5,7)) - 1) : NaN;
     if (!(m >= 0 && m < 12)) continue;
     sums[m].t += Number(t[i] ?? 0);
-    sums[m].p += Number(p[i] ?? 0); // inches/day total
+    sums[m].p += Number(p[i] ?? 0);
     sums[m].w += Number(w[i] ?? 0);
     sums[m].n += 1;
   }
@@ -306,13 +355,11 @@ async function getClimateMonthProfile(lat, lon){
 }
 
 function scoreMonth(profile){
-  // "Typical month" score using averages (lighter than a single-day score).
   let score = 100;
   const temp = profile.avgTempF ?? 70;
   const wind = profile.avgWindMph ?? 8;
   const pday = profile.avgDailyPrecipIn ?? 0;
 
-  // Temperature (same tiers, but interpreted as monthly mean)
   let tp = 0;
   if (temp < 30) tp = 85;
   else if (temp < 38) tp = 70;
@@ -325,7 +372,6 @@ function scoreMonth(profile){
   else tp = 85;
   score -= tp;
 
-  // Avg daily precip (in/day)
   let rp = 0;
   if (pday >= 0.25) rp = 55;
   else if (pday >= 0.15) rp = 40;
@@ -333,7 +379,6 @@ function scoreMonth(profile){
   else if (pday >= 0.05) rp = 12;
   score -= rp;
 
-  // Mean wind (mph)
   let wp = 0;
   if (wind >= 18) wp = 20;
   else if (wind >= 14) wp = 12;
@@ -341,7 +386,6 @@ function scoreMonth(profile){
   score -= wp;
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-
   return { score, temp: Math.round(temp), wind: Math.round(wind), pday: Number(pday.toFixed(2)) };
 }
 
@@ -350,13 +394,11 @@ function renderSeason(monthScores){
   const sumEl = $("seasonSummary");
   const grid = $("monthGrid");
 
-  // Pick "recommended" as months scoring >= 70, otherwise top 3.
   const good = monthScores.map((m, i) => ({...m, i})).filter(x => x.score >= 70).map(x => x.i);
   const top3 = monthScores.map((m,i)=>({score:m.score,i})).sort((a,b)=>b.score-a.score).slice(0,3).map(x=>x.i);
 
   const recommended = good.length ? good : top3;
 
-  // Shoulder months = next best 3 not in recommended
   const sortedIdx = monthScores.map((m,i)=>({score:m.score,i})).sort((a,b)=>b.score-a.score).map(x=>x.i);
   const shoulder = sortedIdx.filter(i => !recommended.includes(i)).slice(0,3);
 
@@ -395,14 +437,13 @@ async function updateSeasonForGeo(geo){
   }
 }
 
-
 let selected = null;
 let items = [];
 let activeIndex = -1;
 let timer = null;
 
 // User location cache
-let userCoords = null;      // {lat, lon}
+let userCoords = null;
 let userLocDenied = false;
 let userLocInFlight = null;
 
@@ -417,7 +458,7 @@ const US_STATES = {
 };
 
 function normalizeQuery(q){
-  let parts = q.split(",").map(s => s.trim()).filter(Boolean);
+  let parts = String(q || "").split(",").map(s => s.trim()).filter(Boolean);
   if (parts.length >= 3) parts = parts.slice(0,2);
   if (parts.length === 2) {
     const st = parts[1].toUpperCase();
@@ -442,8 +483,11 @@ function ddRender(list){
 
   box.innerHTML = list.map((it, i) => {
     const label = [it.name, it.admin1].filter(Boolean).join(", ");
-    const sub = it.country ? `<span class="sub">${it.country}</span>` : "";
-    return `<div class="item" data-i="${i}">${label}${sub}</div>`;
+    const kindTag = it.kind === "course" ? "⛳ Golf course" : "📍 City";
+    const subText = it.kind === "course"
+      ? `${kindTag}${it.subline ? " • " + it.subline : ""}${it.country ? " • " + it.country : ""}`
+      : `${kindTag}${it.country ? " • " + it.country : ""}`;
+    return `<div class="item" data-i="${i}">${label}<span class="sub">${subText}</span></div>`;
   }).join("");
 
   box.style.display = "block";
@@ -470,12 +514,20 @@ function pickSuggestion(i, opts = { runImmediately: false }){
   const it = items[i];
   if (!it) return;
   selected = it;
-  $("loc").value = normalizeQuery([it.name, it.admin1].filter(Boolean).join(", "));
+
+  if (it.kind === "course") {
+    const parts = [it.name, it.subline].filter(Boolean);
+    $("loc").value = parts.join(", ");
+  } else {
+    $("loc").value = normalizeQuery([it.name, it.admin1].filter(Boolean).join(", "));
+  }
+
   ddHide();
   if (opts.runImmediately) runCheck();
 }
 
-async function searchLocations(query){
+// --- City/ZIP search (Open-Meteo geocoding) ---
+async function searchCities(query){
   const cleaned = normalizeQuery(query);
   const parts = cleaned.split(",").map(s => s.trim()).filter(Boolean);
   const city = parts[0] || cleaned;
@@ -494,6 +546,7 @@ async function searchLocations(query){
     const data = await res.json();
     const results = Array.isArray(data.results) ? data.results : [];
     return results.map(r => ({
+      kind: "city",
       name: r.name,
       admin1: r.admin1 || "",
       country: r.country || "",
@@ -516,6 +569,33 @@ async function searchLocations(query){
   return results;
 }
 
+// --- Combined search: city/ZIP + (optional) golf courses ---
+async function searchLocations(query){
+  const cleaned = normalizeQuery(query);
+
+  let cityResults = [];
+  try { cityResults = await searchCities(cleaned); } catch(_) { cityResults = []; }
+
+  const shouldTryCourses = isGolfyQuery(cleaned) || cityResults.length === 0;
+
+  let courseResults = [];
+  if (shouldTryCourses) {
+    try { courseResults = await searchGolfCourses(cleaned); } catch(_) { courseResults = []; }
+  }
+
+  const seen = new Set();
+  const merged = [];
+  for (const r of [...cityResults, ...courseResults]) {
+    if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) continue;
+    const key = `${r.lat.toFixed(4)},${r.lon.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(r);
+  }
+
+  return merged.slice(0, 6);
+}
+
 async function geocodeTyped(query){
   const cleaned = normalizeQuery(query);
   const results = await searchLocations(cleaned);
@@ -526,6 +606,7 @@ async function geocodeTyped(query){
     const city = parts[0].toLowerCase();
     const st = parts[1].toLowerCase();
     const match = results.find(r =>
+      r.kind !== "course" &&
       (r.name || "").toLowerCase() === city &&
       (r.admin1 || "").toLowerCase().includes(st)
     );
@@ -569,15 +650,6 @@ function maxOf(arr){
   return m;
 }
 
-function lastFinite(arr){
-  if (!Array.isArray(arr) || !arr.length) return null;
-  for (let i = arr.length - 1; i >= 0; i--) {
-    const n = Number(arr[i]);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
 async function fetchHistoricalSnow(lat, lon, model){
   const today = new Date();
   const end = new Date(today); end.setDate(end.getDate() - 5);
@@ -602,18 +674,12 @@ async function fetchHistoricalSnow(lat, lon, model){
 }
 
 async function getSnowContext(lat, lon){
-  // The archive API can include tiny non-zero snow depths due to model noise.
-  // To reduce false positives (eg warm coastal areas), we only infer "standing snow"
-  // if snow is BOTH recent (within the last 7 days of available archive data)
-  // AND meaningfully above noise.
   const modelsToTry = ["era5_land", "era5", null];
   let data = null;
-  let usedModel = "best_match";
 
   for (const m of modelsToTry) {
     try {
       data = await fetchHistoricalSnow(lat, lon, m);
-      usedModel = m || "best_match";
       const sd = data?.hourly?.snow_depth;
       const tf = data?.hourly?.temperature_2m;
       if (Array.isArray(sd) && sd.length && Array.isArray(tf) && tf.length) break;
@@ -623,12 +689,11 @@ async function getSnowContext(lat, lon){
     }
   }
 
-  if (!data) return { ok:false, inferredSnow:false, inferredSnowIn:0, usedModel:"—" };
+  if (!data) return { ok:false, inferredSnow:false, inferredSnowIn:0 };
 
   const snowDepthM = data.hourly?.snow_depth || [];
   const tempF = data.hourly?.temperature_2m || [];
 
-  // Focus on "recent" archive window: last 7 days of returned hourly data
   const windowHours = 7 * 24;
   const startIdx = Math.max(0, snowDepthM.length - windowHours);
 
@@ -638,27 +703,16 @@ async function getSnowContext(lat, lon){
   const maxSnowM = maxOf(snowWin) ?? 0;
   const maxTempF = maxOf(tempWin) ?? 0;
 
-  // Noise gate:
-  // - Treat < ~1.2 in as likely noise unless the window is cold.
-  // - Treat >= ~2.0 in as real.
   const THRESH_STRONG = 0.0508; // 2.0 in
   const THRESH_WEAK = 0.0305;   // 1.2 in
   const COLD_ENOUGH = 40;       // F
 
   let inferredSnow = false;
-
-  if (maxSnowM >= THRESH_STRONG) {
-    inferredSnow = true;
-  } else if (maxSnowM >= THRESH_WEAK && maxTempF <= COLD_ENOUGH) {
-    // modest snow + cold window -> likely standing snow
-    inferredSnow = true;
-  } else {
-    inferredSnow = false;
-  }
+  if (maxSnowM >= THRESH_STRONG) inferredSnow = true;
+  else if (maxSnowM >= THRESH_WEAK && maxTempF <= COLD_ENOUGH) inferredSnow = true;
 
   const inferredSnowIn = inferredSnow ? (maxSnowM * 39.3701) : 0;
-
-  return { ok:true, inferredSnow, inferredSnowIn, usedModel };
+  return { ok:true, inferredSnow, inferredSnowIn };
 }
 
 function metersToInches(m){ return m * 39.3700787402; }
@@ -784,7 +838,7 @@ async function runCheck(){
   try {
     const geo = selected ? selected : await geocodeTyped(raw);
     if (!geo) {
-      showStatus("Couldn’t find that location. Try a ZIP code or a more specific city/state.");
+      showStatus("Couldn’t find that location. Try a ZIP code, a more specific city/state, or a course name.");
       return;
     }
 
@@ -798,16 +852,10 @@ async function runCheck(){
     const cur = wx.current || {};
     const decision = golfabilityScore(cur, wx.hourly, snowCtx);
 
-    const snowDepthM = Number(cur.snow_depth ?? 0) || 0;
-    const snowInForecast = metersToInches(snowDepthM);
-
     const inferredNote = snowCtx?.ok
       ? (snowCtx.inferredSnow ? `${snowCtx.inferredSnowIn.toFixed(1)} in (inferred)` : "0 (no inferred snow)")
       : "Unavailable";
 
-    
-
-    // Google Maps links
     const destName = [geo.name, geo.admin1].filter(Boolean).join(", ");
     const destLatLon = `${geo.lat},${geo.lon}`;
 
@@ -815,7 +863,6 @@ async function runCheck(){
       "https://www.google.com/maps/search/?api=1" +
       "&query=" + encodeURIComponent("public golf courses near " + destName);
 
-    // Directions: if we have your location, include origin; otherwise let Google infer it
     let directionsUrl =
       "https://www.google.com/maps/dir/?api=1" +
       "&destination=" + encodeURIComponent(destLatLon) +
@@ -840,15 +887,15 @@ async function runCheck(){
     }
 
     const golfLine = `<div><strong>Golf near destination:</strong> <a href="${golfUrl}" target="_blank" rel="noopener">Public courses near ${destName}</a></div>`;
-
     const distHtml = distanceLine + golfLine;
-$("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
+
+    $("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
     $("headline").textContent = decision.verdict;
     $("details").innerHTML = `
       <div><strong>Location:</strong> ${[geo.name, geo.admin1, geo.country].filter(Boolean).join(", ")}</div>
       ${distHtml}
       <div><strong>Now:</strong> ${cur.temperature_2m ?? "—"}°F, wind ${cur.wind_speed_10m ?? "—"} mph (gusts ${cur.wind_gusts_10m ?? "—"}), precip ${(Number(cur.precipitation ?? 0)).toFixed(2)} in/hr</div>
-<div><strong>Standing snow (inferred):</strong> ${inferredNote}</div>
+      <div><strong>Standing snow (inferred):</strong> ${inferredNote}</div>
       <div><strong>Last 6h rain:</strong> ${(decision.last6hTotal ?? 0).toFixed(2)} in</div>
       <div><strong>As of:</strong> ${cur.time ?? "—"} (${wx.timezone || "local"})</div>
     `;
@@ -856,8 +903,6 @@ $("scoreline").textContent = "Golfability Score: " + decision.score + "/100";
 
     showStatus("");
     $("out").style.display = "block";
-
-    // Seasonal “best time of year”
     updateSeasonForGeo(geo);
 
   } catch (e) {
@@ -887,7 +932,7 @@ $("loc").addEventListener("input", () => {
     } catch (_) {
       ddHide();
     }
-  }, 200);
+  }, 250);
 });
 
 $("loc").addEventListener("keydown", (e) => {
