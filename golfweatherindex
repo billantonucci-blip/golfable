@@ -1,0 +1,931 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Golf Weather Index</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --green: #167a3f;
+      --green-dark: #0f5a2e;
+      --green-light: #eaf7ef;
+      --yellow: #f5a623;
+      --red: #e53e3e;
+      --gray-bg: #f4f5f0;
+      --card-bg: #ffffff;
+      --border: #e8e8e4;
+      --text: #1a1a1a;
+      --muted: #6b7280;
+      font-family: 'DM Sans', system-ui, sans-serif;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--gray-bg);
+      display: grid;
+      place-items: start center;
+      padding: 32px 16px 64px;
+    }
+    .card {
+      width: min(1000px, 100%);
+      background: var(--card-bg);
+      border-radius: 28px;
+      padding: 40px 44px;
+      box-shadow: 0 4px 32px rgba(0,0,0,.07);
+      border: 1px solid var(--border);
+    }
+
+    /* HEADER */
+    .header { margin-bottom: 28px; }
+    .header h1 {
+      margin: 0 0 6px;
+      font-family: 'DM Serif Display', serif;
+      font-size: 42px;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      font-weight: 400;
+    }
+    .header h1 span { color: var(--green); }
+    .header p {
+      margin: 0;
+      font-size: 17px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* SEARCH ROW */
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+    .input-wrap { flex: 1; min-width: 0; position: relative; }
+    input {
+      width: 100%;
+      padding: 16px 20px;
+      border-radius: 16px;
+      border: 2px solid var(--border);
+      font-size: 18px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      background: #fafafa;
+      color: var(--text);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(22,122,63,.1); background: #fff; }
+    button[type=submit] {
+      flex: 0 0 140px;
+      padding: 16px 0;
+      border-radius: 16px;
+      border: 0;
+      background: var(--green);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    button[type=submit]:hover { background: var(--green-dark); }
+    button[type=submit]:active { transform: scale(.97); }
+
+    /* DROPDOWN */
+    .dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0; right: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,.12);
+      max-height: 260px;
+      overflow-y: auto;
+      display: none;
+      z-index: 100;
+    }
+    .item {
+      padding: 12px 16px;
+      cursor: pointer;
+      font-size: 15px;
+      border-top: 1px solid #f2f2f2;
+    }
+    .item:first-child { border-top: 0; }
+    .item:hover, .item.active { background: var(--green-light); }
+    .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* HINT & STATUS */
+    .hint { margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .hint button {
+      all: unset;
+      color: var(--green);
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: 4px;
+    }
+    #status { margin-top: 10px; color: var(--muted); font-size: 13px; min-height: 18px; }
+
+    /* RESULT PANEL */
+    #out {
+      display: none;
+      margin-top: 24px;
+      padding: 24px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #fafafa;
+    }
+    .result-layout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    #details { font-size: 14px; color: var(--text); display: grid; gap: 6px; }
+    #details div { line-height: 1.5; }
+    #details a { color: var(--green); }
+    #why { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+    /* CIRCULAR GAUGE */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 160px;
+    }
+    .gauge-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .gauge-svg-wrap { position: relative; width: 140px; height: 140px; }
+    .gauge-svg-wrap svg { width: 140px; height: 140px; transform: rotate(-90deg); }
+    .gauge-track { fill: none; stroke: #e8e8e4; stroke-width: 10; }
+    .gauge-fill {
+      fill: none;
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s cubic-bezier(.4,0,.2,1), stroke .5s;
+    }
+    .gauge-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .gauge-score {
+      font-size: 38px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+    }
+    .gauge-denom { font-size: 13px; color: var(--muted); font-weight: 500; }
+    .gauge-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .gauge-verdict {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+      text-align: center;
+      max-width: 160px;
+    }
+
+    /* 7-DAY FORECAST */
+    #forecast-section {
+      display: none;
+      margin-top: 20px;
+      padding: 20px 24px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #fafafa;
+    }
+    #forecast-section h2 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--text);
+    }
+    .forecast-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    .fc-day {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 8px 12px;
+      text-align: left;
+      position: relative;
+      overflow: hidden;
+    }
+    .fc-day::before {
+      content: '';
+      display: block;
+      height: 3px;
+      border-radius: 2px 2px 0 0;
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background: var(--green);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .fc-day.bombs::before { background: #167a3f; opacity: 1; }
+    .fc-day.gear::before { background: #f5a623; opacity: 1; }
+    .fc-day.sickos::before { background: #9b59b6; opacity: 1; }
+    .fc-day.sim::before { background: #aaa; opacity: 1; }
+    .fc-dow {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+    .fc-temps {
+      font-size: 15px;
+      font-weight: 900;
+      color: var(--text);
+      margin-bottom: 6px;
+      white-space: nowrap;
+    }
+    .fc-detail {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .fc-score {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    .fc-score.bombs { background: var(--green-light); color: var(--green-dark); }
+    .fc-score.gear { background: #fff7e6; color: #b37a00; }
+    .fc-score.sickos { background: #f1f0ff; color: #6b21a8; }
+    .fc-score.sim { background: #f2f2f2; color: #555; }
+
+    /* SEASONAL */
+    .season {
+      display: none;
+      margin-top: 20px;
+      padding: 20px 24px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #fafafa;
+    }
+    .season h2 { margin: 0 0 8px; font-size: 16px; font-weight: 900; }
+    .season .summary { font-size: 14px; color: #333; margin-bottom: 10px; line-height: 1.35; }
+    .months { display: flex; flex-wrap: wrap; gap: 8px; }
+    .month {
+      position: relative;
+      width: 56px; height: 44px;
+      padding: 4px 6px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; line-height: 1; font-weight: 900; color: #222;
+    }
+    .month .ms { position: absolute; bottom: 4px; right: 6px; font-size: 10px; font-weight: 800; color: #555; }
+    .month.bombs { background: #eaf7ef; border-color: #cfe9d7; }
+    .month.gear { background: #fff7e6; border-color: #ffe2a6; }
+    .month.sickos { background: #f1f0ff; border-color: #d9d6ff; }
+    .month.sim { background: #f6f6f6; border-color: #e6e6e6; color: #444; }
+    .season .note { margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+    /* SCORING */
+    .scoring { margin-top: 28px; color: #444; font-size: 15px; }
+    .scoring ul { margin: 8px 0 0 20px; }
+    .scoring li { margin: 5px 0; }
+    .fineprint { margin-top: 12px; color: var(--muted); font-size: 14px; }
+
+    .contact { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+    .contact a { color: inherit; text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .card { padding: 24px 20px; }
+      .header h1 { font-size: 30px; }
+      .result-layout { grid-template-columns: 1fr; }
+      .gauge-wrap { flex-direction: row; min-width: unset; }
+      .forecast-grid { grid-template-columns: repeat(7, 1fr); gap: 4px; }
+      .fc-temps { font-size: 12px; }
+      .fc-day { padding: 8px 4px 10px; }
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <h1>Golf <span>Weather</span> Index</h1>
+    <p>Enter a city, ZIP, or golf course to get a real-time golfability score based on current weather conditions.</p>
+  </div>
+
+  <form id="form" class="row" action="javascript:void(0);">
+    <div class="input-wrap">
+      <input id="loc" placeholder="e.g., 11222, Denver, CO, or Bethpage Black" autocomplete="off" />
+      <div id="dropdown" class="dropdown"></div>
+    </div>
+    <button type="submit">Check</button>
+  </form>
+
+  <div class="hint">
+    Want distance from you?
+    <button type="button" id="enableLocBtn">Enable location</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="out">
+    <div class="result-layout">
+      <div>
+        <div id="details"></div>
+        <div id="why"></div>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge-title">Golf Weather Index</div>
+        <div class="gauge-svg-wrap">
+          <svg viewBox="0 0 120 120">
+            <circle class="gauge-track" cx="60" cy="60" r="50"/>
+            <circle id="gaugeFill" class="gauge-fill" cx="60" cy="60" r="50"
+              stroke-dasharray="314.16"
+              stroke-dashoffset="314.16"
+              stroke="#167a3f"/>
+          </svg>
+          <div class="gauge-center">
+            <div id="gaugeScore" class="gauge-score">—</div>
+            <div class="gauge-denom">/100</div>
+            <div class="gauge-label">index</div>
+          </div>
+        </div>
+        <div id="gaugeVerdict" class="gauge-verdict"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7-DAY FORECAST -->
+  <div id="forecast-section">
+    <h2>7-day forecast</h2>
+    <div id="forecast-grid" class="forecast-grid"></div>
+  </div>
+
+  <!-- SEASONAL -->
+  <div id="season" class="season">
+    <h2>Best time of year</h2>
+    <div id="seasonSummary" class="summary"></div>
+    <div id="monthGrid" class="months"></div>
+    <div class="note">Based on long‑term climate model averages. <strong>Numbers are average golfability scores.</strong></div>
+  </div>
+
+  <div class="scoring">
+    <strong>Scoring (v4):</strong>
+    <ul>
+      <li>Starts at <strong>100</strong> and subtracts for adverse weather</li>
+      <li><strong>70–100</strong>: 💣 Bombs away</li>
+      <li><strong>40–69</strong>: ⛳️ Gear up and get out there</li>
+      <li><strong>25–39</strong>: 🧢 Sickos only</li>
+      <li><strong>0–24</strong>: 🎮 Hit the simulator</li>
+    </ul>
+    <div class="fineprint">Weather-only. Courses can still be closed for other reasons.</div>
+  </div>
+
+  <div class="contact">contact: <a href="mailto:bill@freetimestudio.co">bill@freetimestudio.co</a></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+// ---- Gauge ----
+function setGauge(score, tier) {
+  const circumference = 2 * Math.PI * 50; // 314.16
+  const fill = $("gaugeFill");
+  const offset = circumference - (score / 100) * circumference;
+
+  const colors = {
+    BOMBS: "#167a3f",
+    CASUALS: "#f5a623",
+    SICKOS: "#9b59b6",
+    STAY_HOME: "#aaaaaa"
+  };
+
+  fill.style.stroke = colors[tier] || "#167a3f";
+  fill.style.strokeDashoffset = String(offset);
+  $("gaugeScore").textContent = score;
+}
+
+// ---- Golf course search ----
+const GOLF_HINT = /\b(golf|course|club|cc|links|country\s+club|gc)\b/i;
+function isGolfyQuery(q){ return GOLF_HINT.test(q); }
+
+async function searchGolfCourses(query){
+  const q = String(query || "").trim();
+  if (!q) return [];
+  const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&extratags=1&q=" + encodeURIComponent(q + " golf course");
+  const res = await fetch(url, { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Nominatim failed");
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  const mapped = data.map(r => {
+    const a = r.address || {};
+    const name = r.name || (r.display_name ? String(r.display_name).split(",")[0] : "Golf course");
+    const admin1 = a.state || a.region || a.county || "";
+    const cityish = a.city || a.town || a.village || a.hamlet || a.municipality || "";
+    const subParts = [];
+    if (cityish) subParts.push(cityish);
+    if (admin1 && admin1 !== cityish) subParts.push(admin1);
+    return { kind:"course", name, admin1, country: a.country||"", subline: subParts.join(", "), lat: Number(r.lat), lon: Number(r.lon), _class: r.class||"", _type: r.type||"" };
+  });
+  const golfOnly = mapped.filter(x => x._type==="golf_course" || x._class==="leisure" || /golf/i.test(x.name) || /golf/i.test(x.subline||""));
+  return (golfOnly.length ? golfOnly : mapped).slice(0,6);
+}
+
+function seasonTier(score){
+  if (score >= 70) return "bombs";
+  if (score >= 40) return "gear";
+  if (score >= 25) return "sickos";
+  return "sim";
+}
+
+function monthNameRange(indices){
+  const uniq = Array.from(new Set(indices)).sort((a,b)=>a-b);
+  if (!uniq.length) return "";
+  const parts = [];
+  let s = uniq[0], prev = uniq[0];
+  for (let i = 1; i <= uniq.length; i++){
+    const cur = uniq[i];
+    if (cur === prev + 1) { prev = cur; continue; }
+    parts.push(s === prev ? MONTHS_SHORT[s] : MONTHS_SHORT[s]+"–"+MONTHS_SHORT[prev]);
+    s = cur; prev = cur;
+  }
+  return parts.join(", ");
+}
+
+async function getClimateMonthProfile(lat, lon){
+  const params = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon),
+    start_date: "1991-01-01", end_date: "2020-12-31",
+    models: "EC_Earth3P_HR",
+    daily: "temperature_2m_mean,precipitation_sum,wind_speed_10m_mean",
+    temperature_unit: "fahrenheit", precipitation_unit: "inch", wind_speed_unit: "mph"
+  });
+  const res = await fetch("https://climate-api.open-meteo.com/v1/climate?"+params.toString(), { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Climate fetch failed");
+  const data = await res.json();
+  const d = data.daily || {};
+  const time = Array.isArray(d.time) ? d.time : [];
+  const t = Array.isArray(d.temperature_2m_mean) ? d.temperature_2m_mean : [];
+  const p = Array.isArray(d.precipitation_sum) ? d.precipitation_sum : [];
+  const w = Array.isArray(d.wind_speed_10m_mean) ? d.wind_speed_10m_mean : [];
+  const n = Math.min(time.length, t.length||time.length, p.length||time.length, w.length||time.length);
+  if (!n) throw new Error("Climate data missing");
+  const sums = Array.from({length:12}, ()=>({t:0,p:0,w:0,n:0}));
+  for (let i = 0; i < n; i++){
+    const ts = String(time[i]||"");
+    const m = ts.length>=7 ? (Number(ts.slice(5,7))-1) : NaN;
+    if (!(m>=0&&m<12)) continue;
+    sums[m].t += Number(t[i]??0);
+    sums[m].p += Number(p[i]??0);
+    sums[m].w += Number(w[i]??0);
+    sums[m].n += 1;
+  }
+  return sums.map(s => ({ avgTempF: s.n ? s.t/s.n : null, avgWindMph: s.n ? s.w/s.n : null, avgDailyPrecipIn: s.n ? s.p/s.n : null }));
+}
+
+function scoreMonth(profile){
+  let score = 100;
+  const temp = profile.avgTempF ?? 70;
+  const wind = profile.avgWindMph ?? 8;
+  const pday = profile.avgDailyPrecipIn ?? 0;
+  let tp = 0;
+  if (temp<30) tp=85; else if (temp<38) tp=70; else if (temp<42) tp=62; else if (temp<50) tp=45; else if (temp<60) tp=20; else if (temp<=80) tp=0; else if (temp<=95) tp=20; else if (temp<=110) tp=70; else tp=85;
+  score -= tp;
+  let rp = 0;
+  if (pday>=0.25) rp=55; else if (pday>=0.15) rp=40; else if (pday>=0.10) rp=25; else if (pday>=0.05) rp=12;
+  score -= rp;
+  let wp = 0;
+  if (wind>=18) wp=20; else if (wind>=14) wp=12; else if (wind>=10) wp=6;
+  score -= wp;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  return { score, temp: Math.round(temp), wind: Math.round(wind), pday: Number(pday.toFixed(2)) };
+}
+
+function renderSeason(monthScores){
+  const box = $("season"), sumEl = $("seasonSummary"), grid = $("monthGrid");
+  const good = monthScores.map((m,i)=>({...m,i})).filter(x=>x.score>=70).map(x=>x.i);
+  const top3 = monthScores.map((m,i)=>({score:m.score,i})).sort((a,b)=>b.score-a.score).slice(0,3).map(x=>x.i);
+  const recommended = good.length ? good : top3;
+  const sortedIdx = monthScores.map((m,i)=>({score:m.score,i})).sort((a,b)=>b.score-a.score).map(x=>x.i);
+  const shoulder = sortedIdx.filter(i=>!recommended.includes(i)).slice(0,3);
+  const recLabel = monthNameRange(recommended);
+  const shLabel = monthNameRange(shoulder);
+  sumEl.innerHTML = `<strong>Recommended:</strong> ${recLabel}` + (shLabel ? `<br><span style="color:#666;"><strong>Also decent:</strong> ${shLabel}</span>` : "");
+  grid.innerHTML = monthScores.map((ms,i)=>{
+    const tier = seasonTier(ms.score);
+    const title = `${MONTHS[i]}: ${ms.score}/100 · avg ${ms.temp}°F · wind ${ms.wind} mph · precip ${ms.pday} in/day`;
+    return `<div class="month ${tier}" title="${title}">${MONTHS_SHORT[i]}<span class="ms">${ms.score}</span></div>`;
+  }).join("");
+  box.style.display = "block";
+}
+
+async function updateSeasonForGeo(geo){
+  const box = $("season"), sumEl = $("seasonSummary"), grid = $("monthGrid");
+  box.style.display = "block";
+  sumEl.textContent = "Loading seasonal averages…";
+  grid.innerHTML = "";
+  try {
+    const profile = await getClimateMonthProfile(geo.lat, geo.lon);
+    renderSeason(profile.map(p => scoreMonth(p)));
+  } catch(e) {
+    sumEl.textContent = "Couldn't load seasonal averages for this location right now.";
+    grid.innerHTML = "";
+  }
+}
+
+// ---- 7-day forecast ----
+async function get7DayForecast(lat, lon){
+  const params = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon),
+    daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+    temperature_unit: "fahrenheit", wind_speed_unit: "mph", precipitation_unit: "inch",
+    timezone: "auto", forecast_days: "7"
+  });
+  const res = await fetch("https://api.open-meteo.com/v1/forecast?"+params.toString(), { headers: { "Accept": "application/json" }});
+  if (!res.ok) throw new Error("Forecast failed");
+  return await res.json();
+}
+
+function scoreForecastDay(tmax, tmin, precip, windMax){
+  const temp = (tmax + tmin) / 2;
+  let score = 100;
+  let tp = 0;
+  if (temp<30) tp=85; else if (temp<38) tp=70; else if (temp<42) tp=62; else if (temp<50) tp=45; else if (temp<60) tp=20; else if (temp<=80) tp=0; else if (temp<=95) tp=20; else if (temp<=110) tp=70; else tp=85;
+  score -= tp;
+  let rp = 0;
+  if (precip>=0.5) rp=55; else if (precip>=0.3) rp=40; else if (precip>=0.15) rp=25; else if (precip>=0.05) rp=12;
+  score -= rp;
+  let wp = 0;
+  if (windMax>=35) wp=35; else if (windMax>=25) wp=20; else if (windMax>=18) wp=12; else if (windMax>=14) wp=6;
+  score -= wp;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function renderForecast(data){
+  const section = $("forecast-section");
+  const grid = $("forecast-grid");
+  const d = data.daily || {};
+  const times = d.time || [];
+  const tmax = d.temperature_2m_max || [];
+  const tmin = d.temperature_2m_min || [];
+  const precip = d.precipitation_sum || [];
+  const wind = d.wind_speed_10m_max || [];
+
+  grid.innerHTML = times.map((dateStr, i) => {
+    const dt = new Date(dateStr + "T12:00:00");
+    const dow = DAYS_SHORT[dt.getDay()];
+    const hi = Math.round(tmax[i] ?? 0);
+    const lo = Math.round(tmin[i] ?? 0);
+    const pr = Number(precip[i] ?? 0).toFixed(2);
+    const wn = Math.round(wind[i] ?? 0);
+    const score = scoreForecastDay(tmax[i]??65, tmin[i]??45, precip[i]??0, wind[i]??0);
+    const tier = seasonTier(score);
+    return `
+      <div class="fc-day ${tier}">
+        <div class="fc-dow">${dow}</div>
+        <div class="fc-temps">${hi}° / ${lo}°</div>
+        <div class="fc-detail">Precip: ${pr} in<br>Wind max: ${wn} mph</div>
+        <span class="fc-score ${tier}">${score}</span>
+      </div>`;
+  }).join("");
+
+  section.style.display = "block";
+}
+
+// ---- Core search/geocode ----
+let selected = null, items = [], activeIndex = -1, timer = null;
+let userCoords = null, userLocDenied = false, userLocInFlight = null;
+
+const US_STATES = {
+  "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut","DE":"Delaware",
+  "FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa","KS":"Kansas","KY":"Kentucky",
+  "LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri",
+  "MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina",
+  "ND":"North Dakota","OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota",
+  "TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming",
+  "DC":"District of Columbia"
+};
+
+function normalizeQuery(q){
+  let parts = String(q||"").split(",").map(s=>s.trim()).filter(Boolean);
+  if (parts.length>=3) parts=parts.slice(0,2);
+  if (parts.length===2){ const st=parts[1].toUpperCase(); if(US_STATES[st]) parts[1]=US_STATES[st]; }
+  return parts.join(", ").trim();
+}
+
+function showStatus(msg){ $("status").textContent = msg||""; }
+
+function ddHide(){
+  const box = $("dropdown");
+  box.style.display = "none"; box.innerHTML = ""; items = []; activeIndex = -1;
+}
+
+function ddRender(list){
+  const box = $("dropdown");
+  if (!list.length){ ddHide(); return; }
+  box.innerHTML = list.map((it,i)=>{
+    const label = [it.name,it.admin1].filter(Boolean).join(", ");
+    const kindTag = it.kind==="course" ? "⛳ Golf course" : "📍 City";
+    const subText = it.kind==="course"
+      ? `${kindTag}${it.subline?" • "+it.subline:""}${it.country?" • "+it.country:""}`
+      : `${kindTag}${it.country?" • "+it.country:""}`;
+    return `<div class="item" data-i="${i}">${label}<span class="sub">${subText}</span></div>`;
+  }).join("");
+  box.style.display = "block";
+  box.querySelectorAll(".item").forEach(el=>{
+    el.addEventListener("mousedown",()=>{ pickSuggestion(Number(el.dataset.i),{runImmediately:true}); });
+  });
+}
+
+function setActive(idx){
+  const els = Array.from($("dropdown").querySelectorAll(".item"));
+  els.forEach(el=>el.classList.remove("active"));
+  if (idx>=0&&els[idx]){ els[idx].classList.add("active"); els[idx].scrollIntoView({block:"nearest"}); }
+}
+
+function pickSuggestion(i, opts={}){
+  const it = items[i]; if (!it) return;
+  selected = it;
+  if (it.kind==="course"){ const parts=[it.name,it.subline].filter(Boolean); $("loc").value=parts.join(", "); }
+  else { $("loc").value = normalizeQuery([it.name,it.admin1].filter(Boolean).join(", ")); }
+  ddHide();
+  if (opts.runImmediately) runCheck();
+}
+
+async function searchCities(query){
+  const cleaned = normalizeQuery(query);
+  const parts = cleaned.split(",").map(s=>s.trim()).filter(Boolean);
+  const city = parts[0]||cleaned;
+  const state = parts.length>=2 ? parts[1] : null;
+  const candidates = [cleaned, ...(state?[`${city} ${state}`]:[]), city];
+  async function attempt(name){
+    const url = "https://geocoding-api.open-meteo.com/v1/search?format=json&count=12&name="+encodeURIComponent(name)+"&country=US";
+    const res = await fetch(url,{headers:{"Accept":"application/json"}});
+    if (!res.ok) throw new Error("Geocoding failed");
+    const data = await res.json();
+    return (Array.isArray(data.results)?data.results:[]).map(r=>({ kind:"city", name:r.name, admin1:r.admin1||"", country:r.country||"", lat:Number(r.latitude), lon:Number(r.longitude) }));
+  }
+  let results = [];
+  for (const c of candidates){ results=await attempt(c); if(results.length) break; }
+  if (state&&results.length){ const f=results.filter(r=>(r.admin1||"").toLowerCase().includes(state.toLowerCase())); if(f.length) results=f; }
+  return results;
+}
+
+async function searchLocations(query){
+  const cleaned = normalizeQuery(query);
+  let cityResults = []; try { cityResults = await searchCities(cleaned); } catch(_){}
+  const shouldTryCourses = isGolfyQuery(cleaned)||cityResults.length===0;
+  let courseResults = []; if (shouldTryCourses){ try { courseResults = await searchGolfCourses(cleaned); } catch(_){} }
+  const seen = new Set(), merged = [];
+  for (const r of [...cityResults,...courseResults]){
+    if (!Number.isFinite(r.lat)||!Number.isFinite(r.lon)) continue;
+    const key = `${r.lat.toFixed(4)},${r.lon.toFixed(4)}`;
+    if (seen.has(key)) continue; seen.add(key); merged.push(r);
+  }
+  return merged.slice(0,6);
+}
+
+async function geocodeTyped(query){
+  const cleaned = normalizeQuery(query);
+  const results = await searchLocations(cleaned);
+  if (!results.length) return null;
+  const parts = cleaned.split(",").map(s=>s.trim()).filter(Boolean);
+  if (parts.length>=2){
+    const city = parts[0].toLowerCase(), st = parts[1].toLowerCase();
+    const match = results.find(r=>r.kind!=="course"&&(r.name||"").toLowerCase()===city&&(r.admin1||"").toLowerCase().includes(st));
+    if (match) return match;
+  }
+  return results[0];
+}
+
+async function getWeather(lat, lon){
+  const params = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon),
+    current: "temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,snow_depth",
+    hourly: "precipitation", past_days: "1", forecast_hours: "12",
+    temperature_unit: "fahrenheit", windspeed_unit: "mph", precipitation_unit: "inch", timezone: "auto"
+  });
+  const res = await fetch("https://api.open-meteo.com/v1/forecast?"+params.toString(),{headers:{"Accept":"application/json"}});
+  if (!res.ok) throw new Error("Weather fetch failed");
+  return await res.json();
+}
+
+function isoDate(d){ const z=new Date(d.getTime()-d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); }
+function maxOf(arr){ if(!Array.isArray(arr)||!arr.length) return null; let m=null; for(const v of arr){ const n=Number(v); if(!Number.isFinite(n)) continue; if(m===null||n>m) m=n; } return m; }
+
+async function fetchHistoricalSnow(lat, lon, model){
+  const today = new Date();
+  const end = new Date(today); end.setDate(end.getDate()-5);
+  const start = new Date(today); start.setDate(start.getDate()-28);
+  const params = new URLSearchParams({
+    latitude:String(lat),longitude:String(lon),
+    start_date:isoDate(start),end_date:isoDate(end),
+    hourly:"snow_depth,temperature_2m",timezone:"auto",temperature_unit:"fahrenheit"
+  });
+  if (model) params.set("models",model);
+  const res = await fetch("https://archive-api.open-meteo.com/v1/archive?"+params.toString(),{headers:{"Accept":"application/json"}});
+  if (!res.ok) throw new Error("Historical snow failed");
+  return await res.json();
+}
+
+async function getSnowContext(lat, lon){
+  const modelsToTry = ["era5_land","era5",null]; let data=null;
+  for (const m of modelsToTry){ try{ data=await fetchHistoricalSnow(lat,lon,m); const sd=data?.hourly?.snow_depth,tf=data?.hourly?.temperature_2m; if(Array.isArray(sd)&&sd.length&&Array.isArray(tf)&&tf.length) break; data=null; } catch(_){ data=null; } }
+  if (!data) return {ok:false,inferredSnow:false,inferredSnowIn:0};
+  const snowDepthM=data.hourly?.snow_depth||[],tempF=data.hourly?.temperature_2m||[];
+  const windowHours=7*24,startIdx=Math.max(0,snowDepthM.length-windowHours);
+  const snowWin=snowDepthM.slice(startIdx),tempWin=tempF.slice(startIdx);
+  const maxSnowM=maxOf(snowWin)??0,maxTempF=maxOf(tempWin)??0;
+  let inferredSnow=false;
+  if (maxSnowM>=0.0508) inferredSnow=true;
+  else if (maxSnowM>=0.0305&&maxTempF<=40) inferredSnow=true;
+  const inferredSnowIn=inferredSnow?(maxSnowM*39.3701):0;
+  return {ok:true,inferredSnow,inferredSnowIn};
+}
+
+function toRad(deg){ return deg*Math.PI/180; }
+function haversineMiles(lat1,lon1,lat2,lon2){
+  const R=3958.7613,dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function requestUserCoords(){
+  if (userCoords) return Promise.resolve(userCoords);
+  if (userLocDenied) return Promise.resolve(null);
+  if (userLocInFlight) return userLocInFlight;
+  if (!navigator.geolocation) return Promise.resolve(null);
+  userLocInFlight = new Promise(resolve=>{
+    navigator.geolocation.getCurrentPosition(
+      pos=>{ userCoords={lat:pos.coords.latitude,lon:pos.coords.longitude}; userLocInFlight=null; resolve(userCoords); },
+      err=>{ if(err&&err.code===1) userLocDenied=true; userLocInFlight=null; resolve(null); },
+      {enableHighAccuracy:false,timeout:6000,maximumAge:5*60*1000}
+    );
+  });
+  return userLocInFlight;
+}
+
+function golfabilityScore(current, hourly, snowCtx){
+  const temp=Number(current.temperature_2m);
+  const precip=Number(current.precipitation)||0;
+  const wind=Number(current.wind_speed_10m)||0;
+  const gust=Number(current.wind_gusts_10m)||0;
+  const snowDepthM=Number(current.snow_depth??0)||0;
+  let score=100; const reasons=[];
+  if (snowDepthM>0||(snowCtx&&snowCtx.inferredSnow)){ return {score:0,tier:"STAY_HOME",verdict:"🎮 Hit the simulator.",summary:"Standing snow inferred",last6hTotal:0,hardStop:true}; }
+  if (precip>=0.25){score-=80;reasons.push("Heavy rain");}
+  else if (precip>0.10){score-=55;reasons.push("Steady rain");}
+  else if (precip>0.02){score-=25;reasons.push("Light rain");}
+  else if (precip>0){score-=8;reasons.push("Drizzle");}
+  let windPenalty=0;
+  if (gust>=35){windPenalty=35;reasons.push("Very gusty");}
+  else if (gust>=30){windPenalty=25;reasons.push("Gusty");}
+  else if (wind>=20){windPenalty=20;reasons.push("Windy");}
+  else if (wind>=15){windPenalty=10;reasons.push("Breezy");}
+  score-=windPenalty;
+  let last6hTotal=0;
+  try{ if(hourly&&Array.isArray(hourly.time)&&Array.isArray(hourly.precipitation)&&current.time){ const idx=hourly.time.indexOf(current.time); if(idx!==-1){ const start=Math.max(0,idx-6); for(let i=start;i<idx;i++) last6hTotal+=(hourly.precipitation[i]||0); } } } catch(_){}
+  if (last6hTotal>=0.75){score-=25;reasons.push("Soaked last 6h");}
+  else if (last6hTotal>=0.40){score-=15;reasons.push("Wet last 6h");}
+  else if (last6hTotal>=0.20){score-=8;reasons.push("Damp last 6h");}
+  let tempPenalty=0;
+  if (temp<30){tempPenalty=85;reasons.push("0–30°F");}
+  else if (temp<38){tempPenalty=70;reasons.push("30–38°F");}
+  else if (temp<42){tempPenalty=62;reasons.push("38–42°F");}
+  else if (temp<50){tempPenalty=45;reasons.push("42–50°F");}
+  else if (temp<60){tempPenalty=20;reasons.push("50–60°F");}
+  else if (temp<=80){tempPenalty=0;}
+  else if (temp<=95){tempPenalty=20;reasons.push("80–95°F");}
+  else if (temp<=110){tempPenalty=70;reasons.push("95–110°F");}
+  else{tempPenalty=85;reasons.push("110°F+");}
+  score-=tempPenalty;
+  score=Math.max(0,Math.min(100,Math.round(score)));
+  function tierForScore(s){ if(s<=24) return "STAY_HOME"; if(s<=39) return "SICKOS"; if(s<=69) return "CASUALS"; return "BOMBS"; }
+  const tier=tierForScore(score);
+  const lines={BOMBS:["💣 Bombs away.","💣 Bombs away — go play.","💣 Full send."],CASUALS:["⛳️ Gear up and get out there.","⛳️ Totally playable — bring a layer.","⛳️ Not perfect, but it plays."],SICKOS:["🧢 Sickos only.","🧢 Sickos only — respect.","🧢 This round builds character."],STAY_HOME:["🎮 Hit the simulator.","🎮 Simulator day.","🎮 Indoor sim is calling."]};
+  const verdict=lines[tier][Math.floor(Math.random()*lines[tier].length)];
+  const summary=reasons.length?reasons.join(", "):"Near-ideal conditions";
+  return {score,tier,verdict,summary,last6hTotal:Number(last6hTotal.toFixed(2)),hardStop:false};
+}
+
+async function runCheck(){
+  const raw = $("loc").value.trim();
+  if (!raw) return;
+  $("out").style.display = "none";
+  $("forecast-section").style.display = "none";
+  $("season").style.display = "none";
+  showStatus("Checking…");
+
+  try {
+    const geo = selected ? selected : await geocodeTyped(raw);
+    if (!geo){ showStatus("Couldn't find that location. Try a ZIP, city/state, or course name."); return; }
+
+    const userLocPromise = requestUserCoords();
+    const [wx, snowCtx, forecastData, myLoc] = await Promise.all([
+      getWeather(geo.lat, geo.lon),
+      getSnowContext(geo.lat, geo.lon),
+      get7DayForecast(geo.lat, geo.lon),
+      userLocPromise
+    ]);
+
+    const cur = wx.current || {};
+    const decision = golfabilityScore(cur, wx.hourly, snowCtx);
+    const inferredNote = snowCtx?.ok ? (snowCtx.inferredSnow ? `${snowCtx.inferredSnowIn.toFixed(1)} in (inferred)` : "0 (no inferred snow)") : "Unavailable";
+
+    const destName = [geo.name, geo.admin1].filter(Boolean).join(", ");
+    const destLatLon = `${geo.lat},${geo.lon}`;
+    const golfUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("public golf courses near "+destName);
+    let directionsUrl = "https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(destLatLon)+"&travelmode=driving";
+
+    let distanceLine = "";
+    if (myLoc && !userLocDenied){
+      const miles = haversineMiles(myLoc.lat,myLoc.lon,geo.lat,geo.lon);
+      const km = miles*1.60934;
+      const origin = `${myLoc.lat},${myLoc.lon}`;
+      directionsUrl = "https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destLatLon)+"&travelmode=driving";
+      distanceLine = `<div><strong>Distance from you:</strong> <a href="${directionsUrl}" target="_blank" rel="noopener">${miles.toFixed(1)} mi (${km.toFixed(1)} km)</a></div>`;
+    } else if (userLocDenied){
+      distanceLine = `<div><strong>Distance from you:</strong> <span style="color:#777">location permission denied</span></div>`;
+    } else {
+      distanceLine = `<div><strong>Distance from you:</strong> <span style="color:#777">enable location to see distance</span></div>`;
+    }
+
+    const golfLine = `<div><strong>Golf near destination:</strong> <a href="${golfUrl}" target="_blank" rel="noopener">Public courses near ${destName}</a></div>`;
+
+    $("details").innerHTML = `
+      <div><strong>Location:</strong> ${[geo.name,geo.admin1,geo.country].filter(Boolean).join(", ")}</div>
+      ${distanceLine}${golfLine}
+      <div><strong>Now:</strong> ${cur.temperature_2m??'—'}°F, wind ${cur.wind_speed_10m??'—'} mph (gusts ${cur.wind_gusts_10m??'—'}), precip ${Number(cur.precipitation??0).toFixed(2)} in/hr</div>
+      <div><strong>Standing snow (inferred):</strong> ${inferredNote}</div>
+      <div><strong>Last 6h rain:</strong> ${(decision.last6hTotal??0).toFixed(2)} in</div>
+      <div><strong>As of:</strong> ${cur.time??'—'} (${wx.timezone||"local"})</div>
+    `;
+    $("why").textContent = "What influenced the score: " + decision.summary;
+
+    setGauge(decision.score, decision.tier);
+    $("gaugeVerdict").textContent = decision.verdict;
+
+    showStatus("");
+    $("out").style.display = "block";
+
+    renderForecast(forecastData);
+    updateSeasonForGeo(geo);
+
+  } catch(e) {
+    showStatus("Something went wrong: " + (e?.message || String(e)));
+  }
+}
+
+$("enableLocBtn").addEventListener("click", async()=>{
+  const before=userCoords; const loc=await requestUserCoords();
+  if(loc&&!before) showStatus("Location enabled. Run a search to see distance.");
+  else if(!loc&&userLocDenied) showStatus("Location permission denied in browser settings.");
+  else if(!loc) showStatus("Couldn't get your location.");
+});
+
+$("loc").addEventListener("input",()=>{
+  selected=null; const q=$("loc").value.trim();
+  if(timer) clearTimeout(timer);
+  if(q.length<2){ddHide();return;}
+  timer=setTimeout(async()=>{ try{ const res=await searchLocations(q); items=res.slice(0,6); activeIndex=-1; ddRender(items); }catch(_){ddHide();} },250);
+});
+
+$("loc").addEventListener("keydown",(e)=>{
+  const visible=$("dropdown").style.display!=="none";
+  if(visible&&(e.key==="ArrowDown"||e.key==="ArrowUp")){
+    e.preventDefault(); if(!items.length) return;
+    if(e.key==="ArrowDown") activeIndex=Math.min(items.length-1,activeIndex+1);
+    if(e.key==="ArrowUp") activeIndex=Math.max(0,activeIndex-1);
+    setActive(activeIndex); return;
+  }
+  if(e.key==="Escape"){ddHide();return;}
+  if(e.key==="Enter"&&visible&&items.length){ e.preventDefault(); pickSuggestion(activeIndex>=0?activeIndex:0,{runImmediately:true}); }
+});
+
+$("form").addEventListener("submit",(e)=>{ e.preventDefault(); ddHide(); runCheck(); });
+document.addEventListener("click",(e)=>{ const box=$("dropdown"),input=$("loc"); if(!box.contains(e.target)&&e.target!==input) ddHide(); });
+</script>
+</body>
+</html>
