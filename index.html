@@ -6,401 +6,522 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Golf Weather Index</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     :root {
       --green: #167a3f;
       --green-dark: #0f5a2e;
+      --green-accent: #3dd68c;
       --green-light: #eaf7ef;
-      --yellow: #f5a623;
-      --red: #e53e3e;
-      --gray-bg: #f4f5f0;
-      --card-bg: #ffffff;
-      --border: #e8e8e4;
-      --text: #1a1a1a;
+      --green-border: #cfe9d7;
+      --border: #e8e8e8;
+      --surface: #f5f7f5;
+      --surface2: #eef0ee;
+      --text: #111;
       --muted: #6b7280;
+      --bg: #eef0ee;
       font-family: 'DM Sans', system-ui, sans-serif;
     }
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--gray-bg);
+      background: var(--bg);
       display: grid;
       place-items: start center;
       padding: 32px 16px 64px;
     }
+
+    /* CARD */
     .card {
       width: min(1000px, 100%);
-      background: var(--card-bg);
-      border-radius: 28px;
-      padding: 40px 44px;
-      box-shadow: 0 4px 32px rgba(0,0,0,.07);
+      background: var(--surface);
+      border-radius: 20px;
+      box-shadow: 0 6px 32px rgba(0,0,0,.10);
       border: 1px solid var(--border);
+      overflow: hidden;
+      padding: 0;
     }
 
     /* HEADER */
-    .header { margin-bottom: 28px; }
-    .header h1 {
-      margin: 0 0 6px;
-      font-family: 'DM Serif Display', serif;
-      font-size: 42px;
-      letter-spacing: -0.02em;
-      color: var(--text);
-      font-weight: 400;
+    .card-header {
+      background: var(--green);
+      padding: 20px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    .header h1 span { color: var(--green); }
-    .header p {
-      margin: 0;
-      font-size: 17px;
-      color: var(--muted);
-      line-height: 1.4;
+    .card-header h1 {
+      margin: 0 0 3px;
+      font-size: 13px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      font-family: 'IBM Plex Mono', monospace;
     }
-
-    /* SEARCH ROW */
-    .row {
+    .card-header .subhead {
+      font-size: 12px;
+      color: rgba(255,255,255,.6);
+      font-family: 'DM Sans', sans-serif;
+    }
+    .header-right {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(255,255,255,.45);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      background: var(--green-accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green-accent);
+    }
+
+    /* BODY */
+    .card-body { padding: 28px 32px; }
+
+    /* SEARCH */
+    .search-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .search-label strong { color: #444; font-weight: 700; }
+    .row {
+      display: flex;
+      align-items: stretch;
       width: 100%;
+      margin-bottom: 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      overflow: visible;
+    }
+    .row:focus-within {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(22,122,63,.1);
     }
     .input-wrap { flex: 1; min-width: 0; position: relative; }
     input {
       width: 100%;
-      padding: 16px 20px;
-      border-radius: 16px;
-      border: 2px solid var(--border);
-      font-size: 18px;
-      font-family: 'DM Sans', sans-serif;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 10px 0 0 10px;
+      font-size: 16px;
+      font-family: 'IBM Plex Mono', monospace;
       outline: none;
-      background: #fafafa;
+      background: transparent;
       color: var(--text);
-      transition: border-color .2s, box-shadow .2s;
     }
-    input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(22,122,63,.1); background: #fff; }
+    input::placeholder { color: #aaa; font-style: normal; }
     button[type=submit] {
-      flex: 0 0 140px;
-      padding: 16px 0;
-      border-radius: 16px;
-      border: 0;
+      flex: 0 0 110px;
+      padding: 14px 0;
+      border: none;
+      border-left: 1.5px solid var(--border);
+      border-radius: 0 10px 10px 0;
       background: var(--green);
       color: #fff;
-      font-size: 18px;
-      font-weight: 700;
-      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: .1em;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: background .2s, transform .1s;
+      transition: background .15s;
     }
     button[type=submit]:hover { background: var(--green-dark); }
-    button[type=submit]:active { transform: scale(.97); }
 
     /* DROPDOWN */
     .dropdown {
       position: absolute;
-      top: calc(100% + 8px);
+      top: calc(100% + 6px);
       left: 0; right: 0;
       background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      box-shadow: 0 12px 32px rgba(0,0,0,.12);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.10);
       max-height: 260px;
       overflow-y: auto;
       display: none;
       z-index: 100;
     }
-    .item {
-      padding: 12px 16px;
-      cursor: pointer;
-      font-size: 15px;
-      border-top: 1px solid #f2f2f2;
-    }
+    .item { padding: 11px 16px; cursor: pointer; font-size: 14px; border-top: 1px solid #f2f2f2; }
     .item:first-child { border-top: 0; }
     .item:hover, .item.active { background: var(--green-light); }
-    .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
 
     /* HINT & STATUS */
-    .hint { margin-top: 10px; color: var(--muted); font-size: 13px; }
-    .hint button {
-      all: unset;
-      color: var(--green);
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: underline;
-      margin-left: 4px;
-    }
-    #status { margin-top: 10px; color: var(--muted); font-size: 13px; min-height: 18px; }
+    .hint { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .hint button { all: unset; color: var(--green); font-weight: 700; cursor: pointer; text-decoration: underline; margin-left: 4px; }
+    #status { color: var(--muted); font-size: 12px; min-height: 18px; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
 
-    /* RESULT PANEL */
-    #out {
-      display: none;
-      margin-top: 24px;
-      padding: 24px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      background: #fafafa;
-    }
+    /* ── RESULT PANEL ── */
+    #out { display: none; margin-top: 22px; }
+
     .result-layout {
       display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: center;
+      grid-template-columns: 1fr 200px;
+      gap: 20px;
+      align-items: start;
     }
-    #details { font-size: 14px; color: var(--text); display: grid; gap: 6px; }
-    #details div { line-height: 1.5; }
-    #details a { color: var(--green); }
-    #why { font-size: 13px; color: var(--muted); margin-top: 10px; }
 
-    /* CIRCULAR GAUGE */
+    /* Location name */
+    #loc-name {
+      font-size: 36px;
+      font-weight: 900;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    #loc-sub {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      margin-bottom: 18px;
+    }
+    #loc-sub a { color: var(--green); text-decoration: none; }
+    #loc-sub a:hover { text-decoration: underline; }
+
+    /* Stat boxes */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .stat-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .stat-box .stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-family: 'IBM Plex Mono', monospace;
+      margin-bottom: 6px;
+    }
+    .stat-box .stat-val {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      line-height: 1;
+    }
+    .stat-box .stat-unit {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+
+    /* Extra info row */
+    #extra-info {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      margin-bottom: 14px;
+      line-height: 1.8;
+    }
+    #extra-info strong { color: var(--text); }
+    #extra-info a { color: var(--green); text-decoration: none; }
+    #extra-info a:hover { text-decoration: underline; }
+
+    /* Verdict bar — hidden, verdict shown only in gauge */
+    #verdict-bar { display: none !important; }
+
+    /* GAUGE — right column */
     .gauge-wrap {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      min-width: 160px;
+      gap: 2px;
+      padding-top: 4px;
     }
     .gauge-title {
-      font-size: 13px;
+      font-size: 9px;
       font-weight: 700;
-      color: var(--muted);
+      color: var(--green);
       text-transform: uppercase;
-      letter-spacing: .08em;
+      letter-spacing: .16em;
+      font-family: 'IBM Plex Mono', monospace;
+      margin-bottom: 8px;
     }
-    .gauge-svg-wrap { position: relative; width: 140px; height: 140px; }
-    .gauge-svg-wrap svg { width: 140px; height: 140px; transform: rotate(-90deg); }
-    .gauge-track { fill: none; stroke: #e8e8e4; stroke-width: 10; }
+    .gauge-svg-wrap { position: relative; width: 150px; height: 150px; }
+    .gauge-svg-wrap svg { width: 150px; height: 150px; transform: rotate(-90deg); }
+    .gauge-track { fill: none; stroke: var(--surface2); stroke-width: 12; }
     .gauge-fill {
       fill: none;
-      stroke-width: 10;
+      stroke-width: 12;
       stroke-linecap: round;
       transition: stroke-dashoffset 1s cubic-bezier(.4,0,.2,1), stroke .5s;
+      stroke: var(--green-accent);
     }
     .gauge-center {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
     }
     .gauge-score {
-      font-size: 38px;
+      font-size: 44px;
       font-weight: 900;
       line-height: 1;
       color: var(--text);
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'IBM Plex Mono', monospace;
     }
-    .gauge-denom { font-size: 13px; color: var(--muted); font-weight: 500; }
-    .gauge-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
-    .gauge-verdict {
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--text);
+    .gauge-denom { font-size: 12px; color: var(--muted); }
+    .gauge-label {
+      font-size: 9px; color: var(--green);
+      letter-spacing: .1em; text-transform: uppercase;
+      font-family: 'IBM Plex Mono', monospace;
+      margin-top: 2px;
+    }
+    /* verdict sits directly below gauge, no gap */
+    #gaugeVerdict {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green);
       text-align: center;
       max-width: 160px;
+      line-height: 1.3;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: .04em;
+      margin-top: 4px;
     }
 
     /* 7-DAY FORECAST */
     #forecast-section {
       display: none;
-      margin-top: 20px;
-      padding: 20px 24px;
-      border-radius: 20px;
+      margin-top: 18px;
+      background: #fff;
       border: 1px solid var(--border);
-      background: #fafafa;
+      border-radius: 16px;
+      overflow: hidden;
     }
     #forecast-section h2 {
-      margin: 0 0 16px;
-      font-size: 16px;
-      font-weight: 900;
-      color: var(--text);
+      margin: 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--green-accent);
+      background: var(--green);
+      padding: 8px 18px;
+      font-family: 'IBM Plex Mono', monospace;
     }
     .forecast-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 8px;
     }
     .fc-day {
       background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 10px 8px 12px;
-      text-align: left;
-      position: relative;
-      overflow: hidden;
+      border-right: 1px solid var(--border);
+      padding: 12px 6px 14px;
+      text-align: center;
     }
-    .fc-day::before {
-      content: '';
-      display: block;
-      height: 3px;
-      border-radius: 2px 2px 0 0;
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      background: var(--green);
-      opacity: 0;
-      transition: opacity .3s;
-    }
-    .fc-day.bombs::before { background: #167a3f; opacity: 1; }
-    .fc-day.gear::before { background: #f5a623; opacity: 1; }
-    .fc-day.sickos::before { background: #9b59b6; opacity: 1; }
-    .fc-day.sim::before { background: #aaa; opacity: 1; }
+    .fc-day:last-child { border-right: none; }
     .fc-dow {
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 9px; font-weight: 700;
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      margin-bottom: 4px;
+      text-transform: uppercase; letter-spacing: .1em;
+      font-family: 'IBM Plex Mono', monospace;
+      margin-bottom: 6px;
     }
     .fc-temps {
-      font-size: 15px;
-      font-weight: 900;
-      color: var(--text);
-      margin-bottom: 6px;
+      font-size: 14px; font-weight: 900;
+      color: var(--text); margin-bottom: 6px;
       white-space: nowrap;
     }
-    .fc-detail {
-      font-size: 11px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
+    .fc-detail { font-size: 10px; color: var(--muted); line-height: 1.6; }
     .fc-score {
-      display: inline-block;
-      margin-top: 6px;
-      font-size: 11px;
-      font-weight: 800;
-      padding: 2px 6px;
-      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 8px auto 0;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: 1.5px solid #ddd;
+      font-size: 11px; font-weight: 900;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
     }
-    .fc-score.bombs { background: var(--green-light); color: var(--green-dark); }
-    .fc-score.gear { background: #fff7e6; color: #b37a00; }
-    .fc-score.sickos { background: #f1f0ff; color: #6b21a8; }
-    .fc-score.sim { background: #f2f2f2; color: #555; }
+    .fc-score.bombs { background: var(--green-light); border-color: var(--green-border); color: var(--green-dark); }
+    .fc-score.gear { background: #fefce8; border-color: #fde047; color: #713f12; }
+    .fc-score.sickos { background: #faf5ff; border-color: #d8b4fe; color: #6b21a8; }
+    .fc-score.sim { background: #f3f4f6; border-color: #d1d5db; color: #6b7280; }
 
     /* SEASONAL */
     .season {
       display: none;
-      margin-top: 20px;
-      padding: 20px 24px;
-      border-radius: 20px;
+      margin-top: 18px;
+      background: #fff;
       border: 1px solid var(--border);
-      background: #fafafa;
+      border-radius: 16px;
+      overflow: hidden;
     }
-    .season h2 { margin: 0 0 8px; font-size: 16px; font-weight: 900; }
-    .season .summary { font-size: 14px; color: #333; margin-bottom: 10px; line-height: 1.35; }
-    .months { display: flex; flex-wrap: wrap; gap: 8px; }
+    .season h2 {
+      margin: 0;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .16em; text-transform: uppercase;
+      color: var(--green-accent);
+      background: var(--green);
+      padding: 8px 18px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .season-body { padding: 16px 20px; }
+    .season .summary { font-size: 13px; color: #333; margin-bottom: 12px; line-height: 1.5; }
+    .months { display: flex; flex-wrap: wrap; gap: 6px; }
     .month {
       position: relative;
-      width: 56px; height: 44px;
-      padding: 4px 6px 16px;
-      border-radius: 12px;
+      width: 54px; height: 42px;
+      padding: 4px 6px 14px;
+      border-radius: 8px;
       border: 1px solid var(--border);
-      background: #fff;
+      background: var(--surface);
       display: flex; align-items: center; justify-content: center;
-      font-size: 13px; line-height: 1; font-weight: 900; color: #222;
+      font-size: 12px; line-height: 1; font-weight: 700; color: #333;
     }
-    .month .ms { position: absolute; bottom: 4px; right: 6px; font-size: 10px; font-weight: 800; color: #555; }
-    .month.bombs { background: #eaf7ef; border-color: #cfe9d7; }
-    .month.gear { background: #fff7e6; border-color: #ffe2a6; }
-    .month.sickos { background: #f1f0ff; border-color: #d9d6ff; }
-    .month.sim { background: #f6f6f6; border-color: #e6e6e6; color: #444; }
-    .season .note { margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .month .ms { position: absolute; bottom: 3px; right: 5px; font-size: 9px; font-weight: 800; color: #666; font-family: 'IBM Plex Mono', monospace; }
+    .month.bombs { background: var(--green-light); border-color: var(--green-border); color: var(--green-dark); }
+    .month.gear { background: #fefce8; border-color: #fde047; color: #713f12; }
+    .month.sickos { background: #faf5ff; border-color: #d8b4fe; color: #6b21a8; }
+    .month.sim { background: #f3f4f6; border-color: #d1d5db; color: #6b7280; }
+    .season .note { margin-top: 10px; font-size: 11px; color: var(--muted); }
 
     /* SCORING */
-    .scoring { margin-top: 28px; color: #444; font-size: 15px; }
+    .scoring { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 13px; color: #444; }
+    .scoring strong { color: var(--text); }
     .scoring ul { margin: 8px 0 0 20px; }
     .scoring li { margin: 5px 0; }
-    .fineprint { margin-top: 12px; color: var(--muted); font-size: 14px; }
-
-    .contact { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+    .fineprint { margin-top: 10px; color: var(--muted); font-size: 12px; }
+    .contact { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
     .contact a { color: inherit; text-decoration: underline; }
 
-    @media (max-width: 640px) {
-      .card { padding: 24px 20px; }
-      .header h1 { font-size: 30px; }
+    @media (max-width: 680px) {
+      .card-body { padding: 20px; }
+      .card-header { padding: 16px 20px; }
       .result-layout { grid-template-columns: 1fr; }
-      .gauge-wrap { flex-direction: row; min-width: unset; }
-      .forecast-grid { grid-template-columns: repeat(7, 1fr); gap: 4px; }
-      .fc-temps { font-size: 12px; }
-      .fc-day { padding: 8px 4px 10px; }
+      .gauge-wrap { flex-direction: row; padding-top: 0; gap: 20px; }
+      .stat-row { grid-template-columns: repeat(3, 1fr); }
+      .fc-temps { font-size: 11px; }
     }
   </style>
 </head>
 <body>
 <div class="card">
-  <div class="header">
-    <h1>Golf <span>Weather</span> Index</h1>
-    <p><p>Enter a <strong style="color:#1a1a1a">city</strong>, <strong style="color:#1a1a1a">ZIP</strong>, or <strong style="color:#1a1a1a">golf course</strong> to get a real-time golfability score based on current weather conditions.</p>
-  </div>
 
-  <form id="form" class="row" action="javascript:void(0);">
-    <div class="input-wrap">
-      <input id="loc" placeholder="e.g., 11222, Denver, CO, or Bethpage Black" autocomplete="off" />
-      <div id="dropdown" class="dropdown"></div>
+  <div class="card-header">
+    <div>
+      <h1>Golf Weather Index</h1>
+      <div class="subhead">Real-time conditions · Golfability scoring</div>
     </div>
-    <button type="submit">Check</button>
-  </form>
-
-  <div class="hint">
-    Want distance from you?
-    <button type="button" id="enableLocBtn">Enable location</button>
+    <div class="header-right">
+      <div class="live-dot"></div>
+      Live
+    </div>
   </div>
 
-  <div id="status"></div>
+  <div class="card-body">
 
-  <div id="out">
-    <div class="result-layout">
-      <div>
-        <div id="details"></div>
-        <div id="why"></div>
+    <div class="search-label">Enter a <strong>city</strong>, <strong>ZIP</strong>, or <strong>golf course</strong></div>
+
+    <form id="form" class="row" action="javascript:void(0);">
+      <div class="input-wrap">
+        <input id="loc" placeholder="e.g., Myrtle Beach, SC or Bethpage Black" autocomplete="off" />
+        <div id="dropdown" class="dropdown"></div>
       </div>
-      <div class="gauge-wrap">
-        <div class="gauge-title">Golf Weather Index</div>
-        <div class="gauge-svg-wrap">
-          <svg viewBox="0 0 120 120">
-            <circle class="gauge-track" cx="60" cy="60" r="50"/>
-            <circle id="gaugeFill" class="gauge-fill" cx="60" cy="60" r="50"
-              stroke-dasharray="314.16"
-              stroke-dashoffset="314.16"
-              stroke="#167a3f"/>
-          </svg>
-          <div class="gauge-center">
-            <div id="gaugeScore" class="gauge-score">—</div>
-            <div class="gauge-denom">/100</div>
-            <div class="gauge-label">index</div>
+      <button type="submit">Check</button>
+    </form>
+
+    <div class="hint">
+      Want distance from you?
+      <button type="button" id="enableLocBtn">Enable location</button>
+    </div>
+    <div id="status"></div>
+
+    <!-- RESULT PANEL -->
+    <div id="out">
+      <div class="result-layout">
+        <div>
+          <div id="loc-name"></div>
+          <div id="loc-sub"></div>
+          <div class="stat-row">
+            <div class="stat-box">
+              <div class="stat-label">Temp</div>
+              <div class="stat-val" id="stat-temp">—<span class="stat-unit">°F</span></div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Wind</div>
+              <div class="stat-val" id="stat-wind">—<span class="stat-unit"> mph</span></div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Precip</div>
+              <div class="stat-val" id="stat-precip">—<span class="stat-unit"> in</span></div>
+            </div>
           </div>
+          <div id="extra-info"></div>
+          <div id="verdict-bar"></div>
         </div>
-        <div id="gaugeVerdict" class="gauge-verdict"></div>
+        <div class="gauge-wrap">
+          <div class="gauge-title">Index Score</div>
+          <div class="gauge-svg-wrap">
+            <svg viewBox="0 0 120 120">
+              <circle class="gauge-track" cx="60" cy="60" r="50"/>
+              <circle id="gaugeFill" class="gauge-fill" cx="60" cy="60" r="50"
+                stroke-dasharray="314.16"
+                stroke-dashoffset="314.16"/>
+            </svg>
+            <div class="gauge-center">
+              <div id="gaugeScore" class="gauge-score">—</div>
+              <div class="gauge-denom">/100</div>
+            </div>
+          </div>
+          <div class="gauge-label">Index Score</div>
+          <div id="gaugeVerdict"></div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- 7-DAY FORECAST -->
-  <div id="forecast-section">
-    <h2>7-day forecast</h2>
-    <div id="forecast-grid" class="forecast-grid"></div>
-  </div>
+    <!-- 7-DAY FORECAST -->
+    <div id="forecast-section">
+      <h2>7-Day Forecast</h2>
+      <div id="forecast-grid" class="forecast-grid"></div>
+    </div>
 
-  <!-- SEASONAL -->
-  <div id="season" class="season">
-    <h2>Best time of year</h2>
-    <div id="seasonSummary" class="summary"></div>
-    <div id="monthGrid" class="months"></div>
-    <div class="note">Based on long‑term climate model averages. <strong>Numbers are average golfability scores.</strong></div>
-  </div>
+    <!-- SEASONAL -->
+    <div id="season" class="season">
+      <h2>Best Time of Year</h2>
+      <div class="season-body">
+        <div id="seasonSummary" class="summary"></div>
+        <div id="monthGrid" class="months"></div>
+        <div class="note">Based on long‑term climate model averages. <strong>Numbers are average golfability scores.</strong></div>
+      </div>
+    </div>
 
-  <div class="scoring">
-    <strong>Scoring (v4):</strong>
-    <ul>
-      <li>Starts at <strong>100</strong> and subtracts for adverse weather</li>
-      <li><strong>70–100</strong>: 💣 Bombs away</li>
-      <li><strong>40–69</strong>: ⛳️ Gear up and get out there</li>
-      <li><strong>25–39</strong>: 🧢 Sickos only</li>
-      <li><strong>0–24</strong>: 🎮 Hit the simulator</li>
-    </ul>
-    <div class="fineprint">Weather-only. Courses can still be closed for other reasons.</div>
-  </div>
+    <div class="scoring">
+      <strong>Scoring (v4):</strong>
+      <ul>
+        <li>Starts at <strong>100</strong> and subtracts for adverse weather</li>
+        <li><strong>70–100</strong>: 💣 Bombs away</li>
+        <li><strong>40–69</strong>: ⛳️ Gear up and get out there</li>
+        <li><strong>25–39</strong>: 🧢 Sickos only</li>
+        <li><strong>0–24</strong>: 🎮 Hit the simulator</li>
+      </ul>
+      <div class="fineprint">Weather-only. Courses can still be closed for other reasons.</div>
+    </div>
 
-  <div class="contact">contact: <a href="mailto:bill@freetimestudio.co">bill@freetimestudio.co</a></div>
+    <div class="contact">contact: <a href="mailto:bill@freetimestudio.co">bill@freetimestudio.co</a></div>
+
+  </div>
 </div>
 
 <script>
@@ -416,10 +537,10 @@ function setGauge(score, tier) {
   const offset = circumference - (score / 100) * circumference;
 
   const colors = {
-    BOMBS: "#167a3f",
-    CASUALS: "#f5a623",
-    SICKOS: "#9b59b6",
-    STAY_HOME: "#aaaaaa"
+    BOMBS: "#3dd68c",
+    CASUALS: "#f5c842",
+    SICKOS: "#c084fc",
+    STAY_HOME: "#d1d5db"
   };
 
   fill.style.stroke = colors[tier] || "#167a3f";
@@ -874,15 +995,34 @@ async function runCheck(){
 
     const golfLine = `<div><strong>Golf near destination:</strong> <a href="${golfUrl}" target="_blank" rel="noopener">Public courses near ${destName}</a></div>`;
 
-    $("details").innerHTML = `
-      <div><strong>Location:</strong> ${[geo.name,geo.admin1,geo.country].filter(Boolean).join(", ")}</div>
-      ${distanceLine}${golfLine}
-      <div><strong>Now:</strong> ${cur.temperature_2m??'—'}°F, wind ${cur.wind_speed_10m??'—'} mph (gusts ${cur.wind_gusts_10m??'—'}), precip ${Number(cur.precipitation??0).toFixed(2)} in/hr</div>
-      <div><strong>Standing snow (inferred):</strong> ${inferredNote}</div>
-      <div><strong>Last 6h rain:</strong> ${(decision.last6hTotal??0).toFixed(2)} in</div>
-      <div><strong>As of:</strong> ${cur.time??'—'} (${wx.timezone||"local"})</div>
-    `;
-    $("why").textContent = "What influenced the score: " + decision.summary;
+    $("loc-name").textContent = geo.name || destName;
+    $("loc-sub").innerHTML = [geo.admin1, geo.country].filter(Boolean).join(", ")
+      + ` · <span style="font-family:'IBM Plex Mono',monospace">${geo.lat.toFixed(4)}° N, ${Math.abs(geo.lon).toFixed(4)}° W</span>`
+      + (myLoc && !userLocDenied ? ` · <a href="${directionsUrl}" target="_blank" rel="noopener">${haversineMiles(myLoc.lat,myLoc.lon,geo.lat,geo.lon).toFixed(1)} mi away</a>` : "")
+      + ` · <a href="${golfUrl}" target="_blank" rel="noopener">Find courses</a>`;
+
+    // Stat boxes
+    const tempVal = cur.temperature_2m ?? "—";
+    const windVal = cur.wind_speed_10m ?? "—";
+    const precipVal = Number(cur.precipitation ?? 0).toFixed(2);
+    $("stat-temp").innerHTML = `${tempVal}<span class="stat-unit">°F</span>`;
+    $("stat-wind").innerHTML = `${windVal}<span class="stat-unit"> mph</span>`;
+    $("stat-precip").innerHTML = `${precipVal}<span class="stat-unit"> in</span>`;
+
+    // Extra info
+    $("extra-info").innerHTML =
+      `<strong>Gusts:</strong> ${cur.wind_gusts_10m ?? "—"} mph &nbsp;·&nbsp; ` +
+      `<strong>Snow:</strong> ${inferredNote} &nbsp;·&nbsp; ` +
+      `<strong>Last 6h rain:</strong> ${(decision.last6hTotal ?? 0).toFixed(2)} in &nbsp;·&nbsp; ` +
+      `<strong>As of:</strong> ${cur.time ?? "—"} (${wx.timezone || "local"})`;
+
+    // Verdict bar
+    const vbar = $("verdict-bar");
+    vbar.textContent = decision.verdict;
+    vbar.className = "";
+    vbar.style.display = "block";
+    const tierClass = { BOMBS: "", CASUALS: "gear", SICKOS: "sickos", STAY_HOME: "sim" }[decision.tier] || "";
+    if (tierClass) vbar.classList.add(tierClass);
 
     setGauge(decision.score, decision.tier);
     $("gaugeVerdict").textContent = decision.verdict;
