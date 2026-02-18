@@ -2,7 +2,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <link rel="icon" href="favicon.png" sizes="any">
+  <link rel="icon" href="favicon.ico" sizes="any">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Golf Weather Index</title>
@@ -164,14 +164,27 @@
     #status { color: var(--muted); font-size: 12px; min-height: 18px; margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
 
     /* ── RESULT PANEL ── */
-    #out { display: none; margin-top: 22px; }
+    #out { display: none; margin-top: 22px; overflow: hidden; }
 
     .result-layout {
       display: grid;
-      grid-template-columns: 1fr 200px;
+      grid-template-columns: minmax(0, 1fr) 180px;
       gap: 20px;
       align-items: start;
     }
+
+    /* Gauge — right column */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding-top: 4px;
+      width: 180px;
+      flex-shrink: 0;
+    }
+    .gauge-svg-wrap { position: relative; width: 150px; height: 150px; flex-shrink: 0; }
+    .gauge-svg-wrap svg { width: 150px; height: 150px; transform: rotate(-90deg); display: block; }
 
     /* Location name */
     #loc-name {
@@ -186,6 +199,9 @@
       color: var(--muted);
       font-family: 'IBM Plex Mono', monospace;
       margin-bottom: 18px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     #loc-sub a { color: var(--green); text-decoration: none; }
     #loc-sub a:hover { text-decoration: underline; }
@@ -234,12 +250,17 @@
       margin-bottom: 14px;
       line-height: 1.8;
     }
+    #extra-info .info-line1 {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #extra-info .info-line2 {
+      white-space: normal;
+    }
     #extra-info strong { color: var(--text); }
-    #extra-info a { color: var(--green); text-decoration: none; }
-    #extra-info a:hover { text-decoration: underline; }
 
-    /* Verdict bar — hidden, verdict shown only in gauge */
-    #verdict-bar { display: none !important; }
+    .result-left-col { min-width: 0; overflow: hidden; }
 
     /* GAUGE — right column */
     .gauge-wrap {
@@ -258,8 +279,6 @@
       font-family: 'IBM Plex Mono', monospace;
       margin-bottom: 8px;
     }
-    .gauge-svg-wrap { position: relative; width: 150px; height: 150px; }
-    .gauge-svg-wrap svg { width: 150px; height: 150px; transform: rotate(-90deg); }
     .gauge-track { fill: none; stroke: var(--surface2); stroke-width: 12; }
     .gauge-fill {
       fill: none;
@@ -421,7 +440,7 @@
 
   <div class="card-header">
     <div>
-      <h1>Golf Weather Index</h1>
+      <h1 onclick="return false;" style="cursor:default; user-select:none;">Golf Weather Index</h1>
       <div class="subhead">Real-time conditions · Golfability scoring</div>
     </div>
     <div class="header-right">
@@ -451,7 +470,7 @@
     <!-- RESULT PANEL -->
     <div id="out">
       <div class="result-layout">
-        <div>
+        <div class="result-left-col">
           <div id="loc-name"></div>
           <div id="loc-sub"></div>
           <div class="stat-row">
@@ -472,7 +491,7 @@
           <div id="verdict-bar"></div>
         </div>
         <div class="gauge-wrap">
-           <div class="gauge-title">Index Score</div>
+          <div class="gauge-label">Index Score</div>
           <div class="gauge-svg-wrap">
             <svg viewBox="0 0 120 120">
               <circle class="gauge-track" cx="60" cy="60" r="50"/>
@@ -507,7 +526,7 @@
     </div>
 
     <div class="scoring">
-      <strong>Golf weather index scoring (v4):</strong>
+      <strong>Golf Weather Index (v4):</strong>
       <ul>
         <li>Starts at <strong>100</strong> and subtracts for adverse weather</li>
         <li><strong>70–100</strong>: 💣 Bombs away</li>
@@ -1008,20 +1027,26 @@ async function runCheck(){
     $("stat-wind").innerHTML = `${windVal}<span class="stat-unit"> mph</span>`;
     $("stat-precip").innerHTML = `${precipVal}<span class="stat-unit"> in</span>`;
 
-    // Extra info
+    // Format time to American standard: MM-DD-YY H:MM AM/PM TZ
+    function formatAmericanTime(isoStr, timezone) {
+      try {
+        const dt = new Date(isoStr);
+        const dateOpts = { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: timezone || undefined };
+        const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short', timeZone: timezone || undefined };
+        const datePart = dt.toLocaleDateString('en-US', dateOpts).replace(/\//g, '-');
+        const timePart = dt.toLocaleTimeString('en-US', timeOpts);
+        return `${datePart} ${timePart}`;
+      } catch(_) { return isoStr; }
+    }
+    const formattedTime = formatAmericanTime(cur.time, wx.timezone);
+
+    // Extra info — two lines
     $("extra-info").innerHTML =
-      `<strong>Gusts:</strong> ${cur.wind_gusts_10m ?? "—"} mph &nbsp;·&nbsp; ` +
+      `<div class="info-line1"><strong>Gusts:</strong> ${cur.wind_gusts_10m ?? "—"} mph &nbsp;·&nbsp; ` +
       `<strong>Snow:</strong> ${inferredNote} &nbsp;·&nbsp; ` +
       `<strong>Last 6h rain:</strong> ${(decision.last6hTotal ?? 0).toFixed(2)} in &nbsp;·&nbsp; ` +
-      `<strong>As of:</strong> ${cur.time ?? "—"} (${wx.timezone || "local"})`;
-
-    // Verdict bar
-    const vbar = $("verdict-bar");
-    vbar.textContent = decision.verdict;
-    vbar.className = "";
-    vbar.style.display = "block";
-    const tierClass = { BOMBS: "", CASUALS: "gear", SICKOS: "sickos", STAY_HOME: "sim" }[decision.tier] || "";
-    if (tierClass) vbar.classList.add(tierClass);
+      `<strong>As of:</strong> ${formattedTime}</div>` +
+      `<div class="info-line2"><strong>What influenced the score:</strong> ${decision.summary}</div>`;
 
     setGauge(decision.score, decision.tier);
     $("gaugeVerdict").textContent = decision.verdict;
